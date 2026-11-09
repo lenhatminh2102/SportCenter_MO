@@ -6,7 +6,7 @@ import { useMemberShell } from '@/context/member-shell';
 import { useStaffShell } from '@/context/staff-shell';
 import { useAuth } from '@/context/auth';
 import { titleFor, detailFor } from '@/utils/resource-display';
-import { entityId, referenceId, resourceApis, schedulesApi, coachesApi, classesApi, type ResourceKey } from '@/services/operations';
+import { entityId, referenceId, resourceApis, attendancesApi, schedulesApi, coachesApi, classesApi, type ResourceKey } from '@/services/operations';
 import { resources, isResource } from '@/utils/resources';
 import { canUseResource, isOwnRecord, personalResources } from '@/utils/resource-access';
 import { teachingResources, scopeTeachingResources, dayOf } from '@/utils/coach-teaching';
@@ -29,7 +29,7 @@ function ResourceList({ resource, courseId, classId, date }: { resource: Resourc
   const mine = resource === 'schedules' && user?.role === 'MEMBER' && !classId && !allSchedules;
   const load = useCallback(async () => {
     if (!token || !userRole) throw new Error('Phiên đăng nhập đã kết thúc.');
-    const records = await (mine ? schedulesApi.my(token!) : resource === 'schedules' && userRole === 'COACH' ? schedulesApi.coachMy(token!) : resourceApis[resource].list(token!));
+    const records = await (resource === 'attendances' && userRole === 'MEMBER' ? attendancesApi.my(token) : mine ? schedulesApi.my(token!) : resource === 'schedules' && userRole === 'COACH' ? schedulesApi.coachMy(token!) : resourceApis[resource].list(token!));
     if (!Array.isArray(records)) throw new Error('Danh sách từ máy chủ không hợp lệ.');
     const filtered = records.filter(item => (!courseId || resource !== 'classes' || referenceId(item.courseId) === courseId) && (!classId || resource !== 'schedules' || referenceId(item.classId) === classId) && (!date || resource !== 'schedules' || dayOf(item.date) === date));
     if (userRole === 'COACH' && teachingResources.includes(resource)) { const scope = await loadTeachingScope(token, actorId); return scopeTeachingResources(resource, filtered, scope.classes, scope.paths); }
@@ -53,7 +53,7 @@ function ResourceList({ resource, courseId, classId, date }: { resource: Resourc
       <Text style={ui.title}>{date && resource === 'schedules' ? `Lịch ngày ${date}` : classId && resource === 'schedules' ? 'Lịch của lớp' : mine ? 'Lịch tập của tôi' : user.role === 'COACH' && resource === 'schedules' ? 'Lịch dạy của tôi' : user.role === 'COACH' && resource === 'classes' ? 'Lớp của tôi' : resource === 'class-registrations' && user.role === 'MEMBER' ? 'Đăng ký của tôi' : definition.title}</Text>
       <Text style={ui.eyebrow}>{query.data ? `${items.length} KẾT QUẢ` : 'DỮ LIỆU TRUNG TÂM'}</Text>
       {resource === 'schedules' && !classId && user.role === 'MEMBER' && <Button secondary title={mine ? 'Khám phá lịch các lớp' : 'Về lịch tập của tôi'} onPress={() => setAllSchedules(value => !value)} />}
-      {canCreate && <Button title={resource === 'class-registrations' ? '+ Bắt đầu đăng ký lớp' : `+ Thêm ${definition.singular}`} onPress={create} />}
+      {resource === 'schedules' && user.role === 'CENTER_MANAGER' && <Button secondary title="Import lịch từ Excel" onPress={() => router.push('/schedule-import')} />}{canCreate && <Button title={resource === 'class-registrations' ? '+ Bắt đầu đăng ký lớp' : `+ Thêm ${definition.singular}`} onPress={create} />}
       <Field label="Tìm kiếm" value={search} onChangeText={setSearch} placeholder={`Tìm ${definition.singular}`} />
       <QueryStatus loading={needsActor && actor.loading} error={needsActor ? actor.error : null} retry={actor.reload} />
       {needsActor && actor.error && user.role === 'MEMBER' && <Link href="/profile" style={ui.link}>Tạo hồ sơ hội viên →</Link>}
