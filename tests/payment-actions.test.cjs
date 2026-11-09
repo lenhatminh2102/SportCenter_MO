@@ -13,11 +13,11 @@ function harness(disabled = false) {
     },
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
     'react-native': { Text: 'Text', View: 'View' },
-    'expo-web-browser': { openBrowserAsync: async url => { assert.equal(url, 'https://sandbox.vnpayment.vn/payment'); calls.open++; } },
+    'expo-web-browser': { openBrowserAsync: async url => { assert.equal(url, 'https://pay.payos.vn/web/example'); calls.open++; } },
     '@/services/operations': { entityId: item => item.id },
     '@/services/payments': {
       validatePaymentUrl: value => value,
-      paymentsApi: { vnpay: async () => { calls.prepare++; return { paymentUrl: 'https://sandbox.vnpayment.vn/payment' }; } },
+      paymentsApi: { checkout: async () => { calls.prepare++; return { paymentUrl: 'https://pay.payos.vn/web/example' }; } },
     },
     './ui': { Button: 'Button' }, './styles': { ui: {} },
   };
@@ -34,14 +34,14 @@ function harness(disabled = false) {
 const settle = () => new Promise(resolve => setImmediate(resolve));
 test('checkout is prepared first and browser opens only on a fresh user click', async () => {
   const h = harness();
-  h.button(h.render(), 'Chuẩn bị thanh toán VNPay').props.onPress();
+  h.button(h.render(), 'Chuẩn bị thanh toán trực tuyến').props.onPress();
   await settle(); assert.equal(h.calls.prepare, 1); assert.equal(h.calls.open, 0);
-  h.button(h.render(), 'Mở trang thanh toán VNPay →').props.onPress();
+  h.button(h.render(), 'Mở trang thanh toán →').props.onPress();
   assert.equal(h.calls.open, 1); // synchronous user gesture, before any awaited API request
   await settle(); assert.equal(h.calls.refreshed, 1);
 });
 test('unsaved method or another pending action disables checkout requests', async () => {
-  const h = harness(true); const button = h.button(h.render(), 'Chuẩn bị thanh toán VNPay');
+  const h = harness(true); const button = h.button(h.render(), 'Chuẩn bị thanh toán trực tuyến');
   assert.equal(button.props.disabled, true); button.props.onPress(); await settle();
   assert.equal(h.calls.prepare, 0); assert.equal(h.calls.open, 0);
 });
