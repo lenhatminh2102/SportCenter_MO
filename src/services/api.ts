@@ -15,7 +15,7 @@ export function parseGoogleAuth(result: { requiresOTP?: boolean; data?: unknown 
   return { requiresOTP: false, token: data.token, user: data.user };
 }
 type Envelope<T> = { requiresOTP?: boolean; success: boolean; message?: string; data?: T };
-type RequestOptions = { method?: 'GET' | 'POST' | 'PUT' | 'DELETE'; body?: unknown; token?: string };
+type RequestOptions = { method?: 'GET' | 'POST' | 'PUT' | 'DELETE'; body?: unknown; formData?: FormData; token?: string };
 export class ApiError extends Error {
   constructor(message: string, public status: number) { super(message); this.name = 'ApiError'; }
 }
@@ -29,9 +29,9 @@ export async function requestEnvelope<T>(path: string, options: RequestOptions =
   const timer = setTimeout(() => controller.abort(), 15000);
   try {
     const response = await fetch(`${API_URL}${path}`, {
-      method: options.method || (options.body === undefined ? 'GET' : 'POST'),
-      headers: { Accept: 'application/json', ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}) },
-      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+      method: options.method || (options.body === undefined && !options.formData ? 'GET' : 'POST'),
+      headers: { Accept: 'application/json', ...(options.body === undefined || options.formData ? {} : { 'Content-Type': 'application/json' }), ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}) },
+      ...(options.formData ? { body: options.formData } : options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
       signal: controller.signal,
     });
     if (response.status === 401 && options.token) unauthorizedListeners.forEach(listener => listener(options.token!));
@@ -48,6 +48,23 @@ export async function requestEnvelope<T>(path: string, options: RequestOptions =
 }
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   return (await requestEnvelope<T>(path, options)).data as T;
+}
+export async function requestHtml(path: string, token: string): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(`${API_URL}${path}`, { headers: { Accept: 'text/html', Authorization: `Bearer ${token}` }, signal: controller.signal });
+    if (response.status === 401) unauthorizedListeners.forEach(listener => listener(token));
+    if (!response.ok) {
+      const result = await response.json().catch(() => null);
+      throw new ApiError(result?.message || `Không tải được biên nhận (HTTP ${response.status}).`, response.status);
+    }
+    if (!response.headers.get('content-type')?.includes('text/html')) throw new Error('Biên nhận từ máy chủ không hợp lệ.');
+    return await response.text();
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error('Kết nối quá thời gian. Vui lòng thử lại.');
+    throw error;
+  } finally { clearTimeout(timer); }
 }
 export const authApi = {
   register: (email: string, password: string) => request<ApiUser>('/api/auth/register', { body: { email: email.trim().toLowerCase(), password, role: 'MEMBER' } }),
