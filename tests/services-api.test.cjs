@@ -8,7 +8,7 @@ function loadService(name, fetch = async () => ({ ok: true, status: 200, json: a
   const cache = {};
   function load(file) {
     if (cache[file]) return cache[file];
-    const context = { exports: {}, fetch, URL, AbortController, setTimeout, clearTimeout, TypeError, process: { env: {} }, require: dep => dep === 'react-native' ? { Platform: { OS: 'web' } } : load(dep.startsWith('@/') ? 'src/' + dep.slice(2) + '.ts' : path.posix.normalize(path.posix.join(path.posix.dirname(file), dep + '.ts'))) };
+    const context = { exports: {}, fetch, URL, FormData, AbortController, setTimeout, clearTimeout, TypeError, process: { env: {} }, require: dep => dep === 'react-native' ? { Platform: { OS: 'web' } } : load(dep.startsWith('@/') ? 'src/' + dep.slice(2) + '.ts' : path.posix.normalize(path.posix.join(path.posix.dirname(file), dep + '.ts'))) };
     cache[file] = context.exports;
     vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, context);
     return context.exports;
@@ -16,12 +16,20 @@ function loadService(name, fetch = async () => ({ ok: true, status: 200, json: a
   return load(`src/services/${name}.ts`);
 }
 const cases = [
+  ['notifications', 'notificationsApi', 'my', [], '/notifications/my', 'GET', undefined],
+  ['operations', 'attendancesApi', 'my', [], '/attendances/my', 'GET', undefined],
+  ['operations', 'lessonsApi', 'byClass', ['a/b'], '/lessons/class/a%2Fb', 'GET', undefined],
+  ['homeworks', 'homeworksApi', 'my', [], '/homeworks/my', 'GET', undefined],
+  ['homeworks', 'homeworksApi', 'create', [{ classId: 'c', title: 'Practice', description: 'Run', attachments: ['https://example.com'] }], '/homeworks', 'POST', { classId: 'c', title: 'Practice', description: 'Run', attachments: ['https://example.com'] }],
+  ['members', 'membersApi', 'frontDesk', [{ fullName: ' An ', phone: '090 123 4567', goal: ' Fit ', level: 'BEGINNER' }, ' AN@EXAMPLE.COM ', 'secret123'], '/members/front-desk', 'POST', { fullName: 'An', phone: '0901234567', goal: 'Fit', level: 'BEGINNER', email: 'an@example.com', password: 'secret123' }],
   ['notifications', 'notificationsApi', 'list', [], '/notifications', 'GET', undefined],
   ['notifications', 'notificationsApi', 'create', [{ userId: 'u', title: ' News ', message: ' Hello ' }], '/notifications', 'POST', { userId: 'u', title: 'News', message: 'Hello' }],
   ['notifications', 'notificationsApi', 'setRead', ['a/b', false], '/notifications/a%2Fb', 'PUT', { isRead: false }],
   ['support', 'supportApi', 'list', [], '/support-requests', 'GET', undefined],
   ['support', 'supportApi', 'create', ['m', ' Help '], '/support-requests', 'POST', { memberId: 'm', message: 'Help' }],
-  ['support', 'supportApi', 'update', ['a/b', 'RESOLVED'], '/support-requests/a%2Fb', 'PUT', { status: 'RESOLVED' }],
+  ['support', 'supportApi', 'update', ['a/b', 'RESOLVED'], '/support-requests/a%2Fb/status', 'PUT', { status: 'RESOLVED' }],
+  ['payments', 'paymentsApi', 'status', ['a/b'], '/payments/a%2Fb/status', 'GET', undefined],
+  ['payments', 'paymentsApi', 'record', ['a/b'], '/payments/a%2Fb/record-payment', 'POST', {}],
   ['payments', 'paymentsApi', 'list', [], '/payments', 'GET', undefined],
   ['payments', 'paymentsApi', 'create', ['r', 'ONLINE'], '/payments', 'POST', { classRegistrationId: 'r', paymentMethod: 'ONLINE' }],
   ['payments', 'paymentsApi', 'update', ['a/b', 'CASH'], '/payments/a%2Fb', 'PUT', { paymentMethod: 'CASH' }],
@@ -34,6 +42,43 @@ const cases = [
   ['coach-teaching', 'coachAttendanceApi', 'bySchedule', ['s/id'], '/attendances/schedule/s%2Fid', 'GET', undefined],
   ['rooms', 'roomsApi', 'get', ['a/b'], '/rooms/a%2Fb', 'GET', undefined],
 ];
+test('receipt authenticates with a header and reads HTML instead of a JSON envelope', async () => {
+  const { paymentsApi } = loadService('payments', async (url, options) => {
+    assert.equal(url, 'http://localhost:5000/api/payments/a%2Fb/receipt');
+    assert.equal(options.headers.Authorization, 'Bearer secret');
+    return { ok: true, status: 200, headers: { get: () => 'text/html; charset=utf-8' }, text: async () => '<table>receipt</table>' };
+  });
+  assert.equal(await paymentsApi.receipt('secret', 'a/b'), '<table>receipt</table>');
+});
+test('receipt rejection preserves backend errors', async () => {
+  const { paymentsApi } = loadService('payments', async () => ({ ok: false, status: 409, json: async () => ({ message: 'Only successful payments have receipts' }) }));
+  await assert.rejects(paymentsApi.receipt('token', 'pending'), /Only successful payments/);
+});
+test('Excel import sends a multipart file with authorization and lets fetch set the boundary', async () => {
+  const file = new File(['workbook'], 'schedule.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const { importSchedules } = loadService('schedule-import', async (url, options) => {
+    assert.equal(url, 'http://localhost:5000/api/schedules/import');
+    assert.equal(options.method, 'POST');
+    assert.equal(options.headers.Authorization, 'Bearer token');
+    assert.equal(options.headers['Content-Type'], undefined);
+    assert.equal(options.body.get('file').name, 'schedule.xlsx');
+    return { ok: true, status: 200, json: async () => ({ success: true, data: { successCount: 1, errorCount: 1, errors: [{ row: 3, message: 'Conflict' }] } }) };
+  });
+  const result = await importSchedules('token', { uri: 'blob:test', name: file.name, size: file.size, file });
+  assert.equal(result.successCount, 1); assert.equal(result.errors[0].row, 3);
+});
+test('Excel import rejects unsupported extensions and oversized files before uploading', () => {
+  const { validateScheduleFile } = loadService('schedule-import');
+  assert.throws(() => validateScheduleFile({ name: 'file.csv' }), /xlsx/);
+  assert.throws(() => validateScheduleFile({ name: 'file.xlsx', size: 5 * 1024 * 1024 + 1 }), /5 MB/);
+});
+test('receipt displays escaped database values as text and rejects unexpected markup', () => {
+  const { receiptRows } = loadService('../utils/payment-receipt');
+  const rows = receiptRows('<table><tr><td>Hội viên</td><td>A &amp; B &lt;img&gt;</td></tr><tr><td>Tổng tiền</td><td><strong>500 ₫</strong></td></tr></table>');
+  assert.equal(rows[0][1], 'A & B <img>');
+  assert.equal(rows[1][1], '500 ₫');
+  assert.throws(() => receiptRows('<h1>Unexpected page</h1>'));
+});
 for (const [service, api, method, args, suffix, verb, body] of cases) test(`${service}.${method} sends correct auth and payload`, async () => {
   const module = loadService(service, async (url, options) => {
     assert.equal(url, `http://localhost:5000/api${suffix}`); assert.equal(options.method, verb); assert.equal(options.headers.Authorization, 'Bearer token');
@@ -57,9 +102,11 @@ test('payment ownership resolves populated and unpopulated registrations', () =>
   assert.equal(p.ownPayments(items, [], '').length, 0);
   assert.equal(p.canManagePayments('COACH'), false);
 });
-test('checkout accepts only supported HTTPS VNPay hosts', () => {
+test('checkout accepts only supported HTTPS payment hosts', () => {
   const { validatePaymentUrl } = loadService('payments');
   assert.ok(validatePaymentUrl('https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?a=1'));
+  assert.ok(validatePaymentUrl('https://pay.payos.vn/web/example'));
+  assert.throws(() => validatePaymentUrl('https://pay.payos.vn.example.com/web/example'));
   for (const url of ['http://sandbox.vnpayment.vn', 'https://sandbox.vnpayment.vn.evil.com', 'javascript:alert(1)', 'https://user:pass@pay.vnpay.vn', 'https://example.com']) assert.throws(() => validatePaymentUrl(url));
 });
 test('server payment rejection does not become client success', async () => {
@@ -80,7 +127,7 @@ test('member homepage scopes account data and tolerates one unavailable dataset'
   const responses = {
     '/api/members/me': { _id: 'm', fullName: 'Test Member' },
     '/api/classes': [{ _id: 'c', name: 'Yoga' }],
-    '/api/notifications': [{ userId: 'u', isRead: false }, { userId: 'other', isRead: false }],
+    '/api/notifications/my': [{ userId: 'u', isRead: false }, { userId: 'other', isRead: false }],
     '/api/class-registrations': [{ _id: 'r', memberId: 'm', status: 'PENDING_PAYMENT' }, { _id: 'foreign', memberId: 'other', status: 'CONFIRMED' }],
     '/api/payments': [{ classRegistrationId: 'r', status: 'PENDING' }, { classRegistrationId: 'foreign', status: 'PENDING' }],
   };
@@ -128,7 +175,7 @@ test('enrollment saves only after matching schedule confirmation and uses the co
   const service = loadService('enrollment', async (url, options) => {
     const path = new URL(url).pathname;
     if (options.method === 'POST') { posted = JSON.parse(options.body); return { ok: true, status: 201, json: async () => ({ success: true, data: { _id: 'r', ...posted, status: 'PENDING_PAYMENT' } }) }; }
-    const data = { '/api/class-registrations': [], '/api/classes': [{ _id: 'c', courseId: 'course' }], '/api/courses': [{ _id: 'course', price: 500000, status: 'ACTIVE' }], '/api/schedules': [schedule] }[path];
+    const data = { '/api/class-registrations': [], '/api/classes': [{ _id: 'c', courseId: 'course' }], '/api/courses': [{ _id: 'course', pricing: { personal: 900000, group: 500000 }, status: 'ACTIVE' }], '/api/schedules': [schedule] }[path];
     return { ok: true, status: 200, json: async () => ({ success: true, data }) };
   });
   const result = await service.saveEnrollment('token', { classId: 'c', memberId: 'm', confirmedSchedule: 's|2099-10-17|08:00|09:00|room' });
@@ -138,7 +185,7 @@ test('changed or missing schedules block registration instead of submitting stal
   let writes = 0;
   const service = loadService('enrollment', async (url, options) => {
     if (options.method === 'POST') writes++;
-    const data = { '/api/class-registrations': [], '/api/classes': [{ _id: 'c', courseId: 'course' }], '/api/courses': [{ _id: 'course', price: 500000, status: 'ACTIVE' }], '/api/schedules': [] }[new URL(url).pathname];
+    const data = { '/api/class-registrations': [], '/api/classes': [{ _id: 'c', courseId: 'course' }], '/api/courses': [{ _id: 'course', pricing: { personal: 900000, group: 500000 }, status: 'ACTIVE' }], '/api/schedules': [] }[new URL(url).pathname];
     return { ok: true, status: 200, json: async () => ({ success: true, data }) };
   });
   await assert.rejects(service.saveEnrollment('token', { classId: 'c', memberId: 'm', confirmedSchedule: 'old' }), error => error instanceof service.ScheduleChangedError);
