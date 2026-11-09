@@ -7,6 +7,7 @@ function body(input: MemberInput): MemberInput {
   return { fullName: input.fullName.trim(), phone: input.phone.replace(/[\s.-]/g, ''), goal: input.goal.trim(), level: input.level };
 }
 export const membersApi = {
+  frontDesk: (token: string, input: MemberInput, email: string, password: string) => request<{ user: { id: string; email: string }; member: MemberProfile }>('/api/members/front-desk', { token, body: { ...body(input), email: email.trim().toLowerCase(), password } }),
   me: (token: string) => request<MemberProfile>('/api/members/me', { token }),
   createMe: (token: string, input: MemberInput) => request<MemberProfile>('/api/members/me', { token, body: body(input) }),
   updateMe: (token: string, input: MemberInput) => request<MemberProfile>('/api/members/me', { token, method: 'PUT', body: body(input) }),

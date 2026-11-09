@@ -16,7 +16,7 @@ export default function Notifications() {
   const userId = user?.id;
   const load = useCallback(async () => {
     if (!token || !userId) throw new Error('Phiên đăng nhập đã kết thúc.');
-    return ownNotifications(await notificationsApi.list(token), userId);
+    return ownNotifications(await notificationsApi.my(token), userId);
   }, [token, userId]);
   const query = useApiQuery(load, !!token, false);
   const { reload } = query;

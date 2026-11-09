@@ -18,7 +18,7 @@ export async function loadMemberHome(token: string, userId: string): Promise<Mem
   await Promise.all([
     (async () => { try { data.profile = await membersApi.me(token); } catch (e) { if (e instanceof ApiError && e.status === 404) data.profileMissing = true; else data.errors.push(`Hồ sơ: ${e instanceof Error ? e.message : 'Không tải được hồ sơ.'}`); } })(),
     capture('Lớp học', () => classesApi.list(token), items => { data.classes = items; }),
-    capture('Thông báo', () => notificationsApi.list(token), items => { data.unread = ownNotifications(items, userId).filter(item => !item.isRead).length; }),
+    capture('Thông báo', () => notificationsApi.my(token), items => { data.unread = ownNotifications(items, userId).filter(item => !item.isRead).length; }),
   ]);
   const memberId = data.profile?.id || data.profile?._id;
   if (!memberId) return data;
