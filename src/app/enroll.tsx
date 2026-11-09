@@ -4,7 +4,7 @@ import { Link, router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/auth';
 import { useApiQuery } from '@/hooks/use-api-query';
 import { ApiError } from '@/services/api';
-import { classesApi, coursesApi, schedulesApi, classRegistrationsApi, entityId, referenceId, referenceLabel, type Entity } from '@/services/operations';
+import { classesApi, coursesApi, coursePrice, schedulesApi, classRegistrationsApi, entityId, referenceId, referenceLabel, type Entity } from '@/services/operations';
 import { membersApi, type MemberProfile } from '@/services/members';
 import { ScheduleChangedError, saveEnrollment } from '@/services/enrollment';
 import { currency } from '@/services/payments';
@@ -40,7 +40,9 @@ function EnrollmentFlow({ initialClassId }: { initialClassId?: string }) {
   const memberId = profile ? entityId(profile) : '';
   const existing = data && memberId ? enrollmentFor(data.registrations, classId, memberId) : undefined;
   const conflicts = data && memberId ? enrollmentConflicts(data.schedules, data.registrations, classId, memberId) : [];
-  const ready = !!selected && course?.status === 'ACTIVE' && typeof course.price === 'number' && course.price > 0 && sessions.length > 0;
+  const price = coursePrice(course, selected?.classType);
+  const canPay = course?.status === 'ACTIVE' && price !== undefined && price > 0;
+  const ready = !!selected && canPay && sessions.length > 0;
   const chooseClass = (value: string) => { setClassId(value); setAgreed(false); setConfirmedSchedule(''); setError(''); setStep(1); };
   async function submit() {
     if (pending.current || !profile || !confirmedSchedule) return;
@@ -62,12 +64,12 @@ function EnrollmentFlow({ initialClassId }: { initialClassId?: string }) {
     {data && step === 0 && <><Text style={ui.body}>Chọn lớp phù hợp rồi kiểm tra toàn bộ lịch học trước khi đăng ký.</Text>{data.classes.map(item => <View key={entityId(item)} style={ui.card}><Text style={ui.heading}>{String(item.name || '')}</Text><Text style={ui.body}>{referenceLabel(item.subjectId)} · Coach {referenceLabel(item.coachId)}</Text><Button title="Chọn lớp và xem lịch →" onPress={() => chooseClass(entityId(item))} /></View>)}{!data.classes.length && <Text style={ui.body}>Trung tâm chưa có lớp học.</Text>}</>}
     {data && step > 0 && !selected && <><Text style={ui.error}>Lớp không còn tồn tại.</Text><Button secondary title="Chọn lớp khác" onPress={() => setStep(0)} /></>}
     {data && selected && step > 0 && <>
-      <View style={ui.card}><Text style={ui.heading}>{String(selected.name)}</Text><Text style={ui.body}>Coach: {referenceLabel(selected.coachId)}</Text><Text style={ui.body}>Khóa học: {referenceLabel(selected.courseId)}</Text><Text style={ui.heading}>{currency(course?.price)}</Text></View>
+      <View style={ui.card}><Text style={ui.heading}>{String(selected.name)}</Text><Text style={ui.body}>Coach: {referenceLabel(selected.coachId)}</Text><Text style={ui.body}>Khóa học: {referenceLabel(selected.courseId)} · {selected.classType === 'PERSONAL' ? 'Cá nhân 1–1' : 'Lớp nhóm'}</Text><Text style={ui.heading}>{currency(price)}</Text></View>
       {step === 1 && <>
         <Text style={ui.body}>Bạn đăng ký toàn bộ lớp theo lịch dưới đây. Chọn lớp khác nếu thời gian chưa phù hợp; hiện chưa hỗ trợ đặt một buổi riêng.</Text>
         {sessions.map(item => <View key={entityId(item)} style={ui.card}><Text style={ui.heading}>{String(item.date).slice(0, 10)} · {String(item.startTime)}–{String(item.endTime)}</Text><Text style={ui.body}>{referenceLabel(item.lessonId)} · Phòng {referenceLabel(item.roomId)}</Text></View>)}
         {!sessions.length && <Text style={ui.error}>Lớp chưa có buổi học sắp tới. Vui lòng chọn lớp khác hoặc liên hệ trung tâm.</Text>}
-        {(course?.status !== 'ACTIVE' || typeof course?.price !== 'number' || course.price <= 0) && <Text style={ui.error}>Khóa học chưa mở hoặc chưa có học phí để thanh toán.</Text>}
+        {!canPay && <Text style={ui.error}>Khóa học chưa mở hoặc chưa có học phí để thanh toán.</Text>}
         <Check checked={agreed} onPress={() => setAgreed(value => !value)} label="Tôi đã xem và có thể tham gia lịch của lớp." />
         <Button disabled={!ready || !agreed} title="Tiếp tục: thông tin hội viên →" onPress={() => { setConfirmedSchedule(scheduleSignature(sessions)); setStep(2); }} />
         <Button secondary title="Chọn lớp khác" onPress={() => setStep(0)} />
@@ -82,7 +84,7 @@ function EnrollmentFlow({ initialClassId }: { initialClassId?: string }) {
         <Button secondary title="← Xem lại lịch lớp" onPress={() => setStep(1)} />
       </>}
       {step === 3 && profile && <>
-        <View style={ui.card}><Text style={ui.heading}>Kiểm tra trước khi lưu</Text><Text style={ui.body}>Hội viên: {String(profile.fullName)} · {String(profile.phone || '')}</Text><Text style={ui.body}>{sessions.length} buổi sắp tới theo lịch của lớp.</Text><Text style={ui.body}>Học phí khóa học: {currency(course?.price)}. Số tiền thanh toán cuối cùng được lấy từ hệ thống.</Text><Text style={ui.body}>Lưu đăng ký tạo trạng thái chờ thanh toán. Chỉ sau khi BE xác nhận thanh toán, lịch mới xuất hiện trong “Lịch của tôi”.</Text></View>
+        <View style={ui.card}><Text style={ui.heading}>Kiểm tra trước khi lưu</Text><Text style={ui.body}>Hội viên: {String(profile.fullName)} · {String(profile.phone || '')}</Text><Text style={ui.body}>{sessions.length} buổi sắp tới theo lịch của lớp.</Text><Text style={ui.body}>Học phí khóa học: {currency(price)}. Số tiền thanh toán cuối cùng được lấy từ hệ thống.</Text><Text style={ui.body}>Lưu đăng ký tạo trạng thái chờ thanh toán. Chỉ sau khi BE xác nhận thanh toán, lịch mới xuất hiện trong “Lịch của tôi”.</Text></View>
         <Button disabled={busy || !ready} title={busy ? 'Đang lưu đăng ký…' : 'Lưu đăng ký và đến thanh toán →'} onPress={() => void submit()} />
         <Button secondary disabled={busy} title="← Sửa thông tin" onPress={() => setStep(2)} />
       </>}

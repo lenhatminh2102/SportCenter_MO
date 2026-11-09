@@ -1,4 +1,4 @@
-import { entityId, referenceId, type Entity } from '@/services/operations';
+import { coursePrice, entityId, referenceId, type Entity } from '@/services/operations';
 export const enrollmentSteps = ['Chọn lớp', 'Lịch lớp', 'Thông tin', 'Xác nhận', 'Thanh toán'];
 export const enrollmentRoles = ['MEMBER', 'RECEPTIONIST', 'CENTER_MANAGER'];
 export function upcomingClassSchedules(items: Entity[], classId: string, now = new Date()) {
@@ -11,9 +11,10 @@ export function enrollmentConflicts(schedules: Entity[], registrations: Entity[]
   const own = schedules.filter(item => item.status === 'SCHEDULED' && ownClasses.has(referenceId(item.classId)));
   return upcomingClassSchedules(schedules, classId, now).flatMap(candidate => own.filter(booked => String(booked.date).slice(0, 10) === String(candidate.date).slice(0, 10) && String(candidate.startTime) < String(booked.endTime) && String(booked.startTime) < String(candidate.endTime)).map(booked => ({ candidate, booked })));
 }
-export function assertEnrollmentCourse(course?: Entity) {
+export function assertEnrollmentCourse(course: Entity | undefined, classType: unknown) {
   if (!course || course.status !== 'ACTIVE') throw new Error('Khóa học chưa mở đăng ký. Vui lòng chọn lớp khác.');
-  if (typeof course.price !== 'number' || !Number.isFinite(course.price) || course.price <= 0) throw new Error('Khóa học chưa có học phí phù hợp để thanh toán. Vui lòng liên hệ trung tâm.');
+  const price = coursePrice(course, classType);
+  if (price === undefined || price <= 0) throw new Error('Lớp chưa có học phí phù hợp để thanh toán. Vui lòng liên hệ trung tâm.');
 }
 export function assertResumableRegistration(item: Entity) {
   if (item.status === 'CONFIRMED') throw new Error('Hội viên đã tham gia lớp này. Mở đăng ký của tôi để xem lịch học.');

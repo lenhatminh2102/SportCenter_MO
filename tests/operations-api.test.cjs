@@ -30,8 +30,8 @@ const samples = {
   'workout-results': { workoutPlanId: id, memberId: id, result: 'Completed', comment: 'Good' },
   coaches: { userId: id, fullName: 'Coach Test', phone: '0901234567' },
   subjects: { name: 'Yoga' },
-  courses: { name: 'Yoga Basics', description: 'Intro', price: 500000, status: 'ACTIVE' },
-  lessons: { learningPathId: id, title: 'Lesson 1', description: 'Intro', order: 1 },
+  courses: { subjectId: id, name: 'Yoga Basics', description: 'Intro', pricing: { personal: 900000, group: 500000 }, status: 'ACTIVE' },
+  lessons: { classId: id, learningPathId: id, title: 'Lesson 1', description: 'Intro', order: 1 },
   schedules: { classId: id, lessonId: id, roomId: id, date: '2026-10-14', startTime: '08:00', endTime: '09:00', status: 'SCHEDULED' },
   'activity-logs': { userId: id, action: 'Created a lesson' },
 };
@@ -64,6 +64,14 @@ test('member personal schedule uses its protected /my endpoint', async () => {
     return { ok: true, status: 200, json: async () => ({ success: true, data: [] }) };
   });
   await operations.schedulesApi.my('member-token');
+});
+test('course pricing follows the class type and defaults older classes to group pricing', () => {
+  const { operations } = modules();
+  const course = samples.courses;
+  assert.equal(operations.coursePrice(course, 'PERSONAL'), 900000);
+  assert.equal(operations.coursePrice(course, 'GROUP'), 500000);
+  assert.equal(operations.coursePrice(course, undefined), 500000);
+  assert.equal(operations.coursePrice({ pricing: { group: 0 } }, 'PERSONAL'), undefined);
 });
 test('all resource writes require the manager role in UI', () => {
   const { schema } = modules();
@@ -141,7 +149,12 @@ test('optional workout class can be cleared without sending an invalid ObjectId'
 test('new schedules require rooms and course tuition is a real nonnegative number', () => {
   const { schema } = modules();
   assert.ok(schema.validateResource('schedules', { ...samples.schedules, roomId: '' }, false).errors.roomId);
-  assert.equal(schema.validateResource('courses', { name: 'Yoga', price: '0', status: 'ACTIVE' }, false).payload.price, 0);
-  for (const price of ['', '-1', 'NaN', 'Infinity']) assert.ok(schema.validateResource('courses', { name: 'Yoga', price, status: 'ACTIVE' }, false).errors.price);
+  const fields = { subjectId: id, name: 'Yoga', personalPrice: '900000', groupPrice: '0', status: 'ACTIVE' };
+  const { payload, errors } = schema.validateResource('courses', fields, false);
+  assert.equal(Object.keys(errors).length, 0);
+  assert.equal(payload.pricing.personal, 900000);
+  assert.equal(payload.pricing.group, 0);
+  assert.equal(schema.initialValues('courses', { pricing: payload.pricing }).groupPrice, '0');
+  for (const price of ['', '-1', 'NaN', 'Infinity']) assert.ok(schema.validateResource('courses', { ...fields, groupPrice: price }, false).errors.groupPrice);
   assert.ok(schema.validateResource('rooms', { roomNumber: '001', name: 'Yoga', capacity: '1.5', status: 'ACTIVE' }, false).errors.capacity);
 });

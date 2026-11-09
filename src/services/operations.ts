@@ -1,7 +1,7 @@
 import { request } from './api';
 import { roomsApi } from './rooms';
 export type Entity = { id?: string; _id?: string; [key: string]: unknown };
-export type ResourceInput = Record<string, string | number>;
+export type ResourceInput = Record<string, string | number | { personal: number; group: number }>;
 export type ResourceKey = 'rooms' | 'coaches' | 'schedules' | 'activity-logs' | 'subjects' | 'courses' | 'lessons' | 'classes' | 'class-registrations' | 'attendances' | 'learning-paths' | 'lesson-progress' | 'workout-plans' | 'workout-results';
 export const entityId = (entity: Entity) => entity.id || entity._id || '';
 export function referenceId(value: unknown): string {
@@ -29,8 +29,14 @@ export const coachesApi = {
   myStudents: (token: string) => request<Entity[]>('/api/coaches/my-students', { token }),
 };
 export const subjectsApi = crud('/api/subjects', ['name']);
-export const coursesApi = crud('/api/courses', ['name', 'description', 'price', 'status']);
-export const lessonsApi = crud('/api/lessons', ['learningPathId', 'title', 'description', 'order']);
+export const coursesApi = crud('/api/courses', ['subjectId', 'name', 'description', 'pricing', 'status']);
+export function coursePrice(course: Entity | undefined, classType: unknown): number | undefined {
+  const pricing = course?.pricing;
+  if (!pricing || typeof pricing !== 'object') return;
+  const price = (pricing as Entity)[classType === 'PERSONAL' ? 'personal' : 'group'];
+  if (typeof price === 'number' && Number.isFinite(price) && price >= 0) return price;
+}
+export const lessonsApi = { ...crud('/api/lessons', ['classId', 'learningPathId', 'title', 'description', 'order']), byClass: (token: string, id: string) => request<Entity[]>(`/api/lessons/class/${encodeURIComponent(id)}`, { token }) };
 export const schedulesApi = {
   ...crud('/api/schedules', ['classId', 'lessonId', 'roomId', 'date', 'startTime', 'endTime', 'status']),
   my: (token: string) => request<Entity[]>('/api/schedules/my', { token }),
@@ -40,10 +46,10 @@ export const activityLogsApi = {
   list: (token: string) => request<Entity[]>('/api/activity-logs', { token }),
   create: (token: string, input: ResourceInput) => request<Entity>('/api/activity-logs', { token, body: fields(input, ['userId', 'action']) }),
 };
-export const classesApi = crud('/api/classes', ['name', 'subjectId', 'courseId', 'coachId']);
+export const classesApi = crud('/api/classes', ['name', 'subjectId', 'courseId', 'coachId', 'classType']);
 const registrationCrud = crud('/api/class-registrations', ['classId', 'memberId'], ['classId', 'memberId', 'status']);
 export const classRegistrationsApi = { list: registrationCrud.list, create: registrationCrud.create, update: registrationCrud.update };
-export const attendancesApi = crud('/api/attendances', ['memberId', 'classId', 'lessonId', 'date', 'status']);
+export const attendancesApi = { ...crud('/api/attendances', ['memberId', 'classId', 'lessonId', 'date', 'status']), my: (token: string) => request<Entity[]>('/api/attendances/my', { token }) };
 export const learningPathsApi = crud('/api/learning-paths', ['courseId', 'name', 'description']);
 const progressCrud = crud('/api/lesson-progress', ['memberId', 'lessonId', 'status']);
 export const lessonProgressApi = { list: progressCrud.list, create: progressCrud.create, update: progressCrud.update };

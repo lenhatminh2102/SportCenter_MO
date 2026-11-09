@@ -3,7 +3,8 @@ const relation = (key: string, label: string, path: string, required = true): Fo
 const options = (pairs: [string, string][]) => pairs.map(([value, label]) => ({ value, label }));
 export const trainingResources: Record<'classes' | 'class-registrations' | 'attendances' | 'learning-paths' | 'lesson-progress' | 'workout-plans' | 'workout-results', ResourceDefinition> = {
   classes: { title: 'Lớp học', singular: 'lớp học', titleKey: 'name', fields: [
-    { key: 'name', label: 'Tên lớp học', required: true }, relation('subjectId', 'Môn thể thao', 'subjects'), relation('courseId', 'Khóa học', 'courses'), relation('coachId', 'Huấn luyện viên', 'coaches'),
+    { key: 'name', label: 'Tên lớp học', required: true }, relation('courseId', 'Khóa học', 'courses'), relation('coachId', 'Huấn luyện viên', 'coaches'),
+    { key: 'classType', label: 'Loại lớp', required: true, createOnly: true, options: options([['GROUP', 'Lớp nhóm'], ['PERSONAL', 'Cá nhân 1–1']]) },
   ] },
   'class-registrations': { title: 'Đăng ký lớp', singular: 'đăng ký lớp', titleKey: 'classId', fields: [
     relation('classId', 'Lớp học', 'classes'), relation('memberId', 'Hội viên', 'members'),

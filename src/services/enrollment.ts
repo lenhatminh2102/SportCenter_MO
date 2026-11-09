@@ -9,7 +9,7 @@ export async function saveEnrollment(token: string, input: { classId: string; me
   const [classes, courses, schedules] = await Promise.all([classesApi.list(token), coursesApi.list(token), schedulesApi.list(token)]);
   const selected = classes.find(item => entityId(item) === input.classId);
   if (!selected) throw new Error('Lớp học không còn tồn tại. Vui lòng chọn lại.');
-  assertEnrollmentCourse(courses.find(item => entityId(item) === referenceId(selected.courseId)));
+  assertEnrollmentCourse(courses.find(item => entityId(item) === referenceId(selected.courseId)), selected.classType);
   const sessions = upcomingClassSchedules(schedules, input.classId);
   if (!sessions.length || scheduleSignature(sessions) !== input.confirmedSchedule) throw new ScheduleChangedError('Lịch lớp đã thay đổi. Vui lòng kiểm tra và xác nhận lại lịch.');
   if (enrollmentConflicts(schedules, registrations, input.classId, input.memberId).length) throw new Error('Lịch lớp trùng với lớp hội viên đã được xác nhận. Vui lòng chọn lớp khác.');

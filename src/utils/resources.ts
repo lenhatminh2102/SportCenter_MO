@@ -1,6 +1,6 @@
 import { trainingResources } from './training-resources';
 import { validPhone } from './validation';
-import { referenceId, type Entity, type ResourceInput, type ResourceKey } from '@/services/operations';
+import { coursePrice, referenceId, type Entity, type ResourceInput, type ResourceKey } from '@/services/operations';
 export type FormField = { key: string; label: string; required?: boolean; type?: 'id' | 'phone' | 'number' | 'date' | 'time' | 'multiline' | 'money'; options?: { value: string; label: string }[]; createOnly?: boolean; updateOnly?: boolean; relation?: string };
 export type ResourceDefinition = { title: string; singular: string; titleKey: string; fields: FormField[] };
 export const resources: Record<ResourceKey, ResourceDefinition> = {
@@ -16,11 +16,16 @@ export const resources: Record<ResourceKey, ResourceDefinition> = {
   ] },
   subjects: { title: 'Môn thể thao', singular: 'môn thể thao', titleKey: 'name', fields: [{ key: 'name', label: 'Tên môn thể thao', required: true }] },
   courses: { title: 'Khóa học', singular: 'khóa học', titleKey: 'name', fields: [
-    { key: 'name', label: 'Tên khóa học', required: true }, { key: 'price', label: 'Học phí (VND)', type: 'money', required: true }, { key: 'description', label: 'Mô tả', type: 'multiline' },
+    { key: 'subjectId', label: 'Môn thể thao', type: 'id', relation: '/api/subjects', required: true },
+    { key: 'name', label: 'Tên khóa học', required: true },
+    { key: 'personalPrice', label: 'Học phí lớp cá nhân (VND)', type: 'money', required: true },
+    { key: 'groupPrice', label: 'Học phí lớp nhóm (VND)', type: 'money', required: true },
+    { key: 'description', label: 'Mô tả', type: 'multiline' },
     { key: 'status', label: 'Trạng thái', required: true, options: [{ value: 'ACTIVE', label: 'Hoạt động' }, { value: 'INACTIVE', label: 'Tạm dừng' }] },
   ] },
   lessons: { title: 'Bài học', singular: 'bài học', titleKey: 'title', fields: [
-    { key: 'learningPathId', label: 'Lộ trình học', type: 'id', relation: '/api/learning-paths', required: true },
+    { key: 'classId', label: 'Lớp học', type: 'id', relation: '/api/classes', required: true },
+    { key: 'learningPathId', label: 'Lộ trình học (cùng khóa học với lớp)', type: 'id', relation: '/api/learning-paths', required: true },
     { key: 'title', label: 'Tên bài học', required: true }, { key: 'description', label: 'Nội dung', type: 'multiline' },
     { key: 'order', label: 'Thứ tự bài (từ 1)', type: 'number', required: true },
   ] },
@@ -42,7 +47,8 @@ export function isResource(value?: string): value is ResourceKey { return !!valu
 export const canWriteResource = (role?: string) => role === 'CENTER_MANAGER';
 export function initialValues(resource: ResourceKey, item?: Entity): Record<string, string> {
   return Object.fromEntries(resources[resource].fields.map(field => {
-    const value = item?.[field.key];
+    const value = resource === 'courses' && field.key === 'personalPrice' ? coursePrice(item, 'PERSONAL')
+      : resource === 'courses' && field.key === 'groupPrice' ? coursePrice(item, 'GROUP') : item?.[field.key];
     return [field.key, field.type === 'id' ? referenceId(value) : field.type === 'date' && typeof value === 'string' ? value.slice(0, 10) : value === undefined || value === null ? field.options?.[0].value || (field.type === 'number' ? '1' : '') : String(value)];
   }));
 }
@@ -69,5 +75,10 @@ export function validateResource(resource: ResourceKey, values: Record<string, s
     else if (field.options && !field.options.some(option => option.value === value)) errors[field.key] = 'Vui lòng chọn giá trị hợp lệ.';
   }
   if (resource === 'schedules' && !errors.startTime && !errors.endTime && values.startTime >= values.endTime) errors.endTime = 'Giờ kết thúc phải sau giờ bắt đầu trong cùng ngày.';
+  if (resource === 'courses' && typeof payload.personalPrice === 'number' && typeof payload.groupPrice === 'number') {
+    payload.pricing = { personal: payload.personalPrice, group: payload.groupPrice };
+    delete payload.personalPrice;
+    delete payload.groupPrice;
+  }
   return { errors, payload };
 }
