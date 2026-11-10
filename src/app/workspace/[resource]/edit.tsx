@@ -11,6 +11,7 @@ import { useApiQuery } from '@/hooks/use-api-query';
 import { AccessScreen, QueryStatus } from '@/components/sport/access';
 import { Brand, Screen } from '@/components/sport/ui';
 import { ResourceForm } from '@/components/sport/resource-form';
+import { AccountInfo } from '@/components/sport/account-info';
 import { ui } from '@/components/sport/styles';
 function ResourceEditor({ resource, id, classId, lessonId, date, scheduleId }: { resource: ResourceKey; id?: string; classId?: string; lessonId?: string; date?: string; scheduleId?: string }) {
   const { user, token } = useAuth();
@@ -35,8 +36,8 @@ function ResourceEditor({ resource, id, classId, lessonId, date, scheduleId }: {
   if (!canUseResource(resource, user.role, id ? 'update' : 'create', selected, actorId) || (id && !('update' in api)) || (id && resource === 'class-registrations' && user.role === 'MEMBER')) return <AccessScreen denied />;
   return <Screen><Brand /><Link href={{ pathname: '/workspace/[resource]', params: { resource } }} style={ui.link}>← {resources[resource].title}</Link><Text style={ui.title}>{id ? 'Chỉnh sửa' : 'Thêm'} {resources[resource].singular}</Text>
     {resource === 'class-registrations' && !id && <Text style={ui.body}>Đăng ký mới ở trạng thái chờ thanh toán. Thanh toán và xác nhận được xử lý riêng.</Text>}
-    {resource === 'coaches' && !id && <Text style={ui.body}>Chọn User ID của tài khoản đã đăng ký với vai trò COACH. Hồ sơ huấn luyện viên và tài khoản đăng nhập là hai bản ghi riêng.</Text>}
-    {id && <QueryStatus loading={query.loading} error={query.error} retry={query.reload} />}
+    {resource === 'coaches' && !id && <><Text style={ui.body}>Nhập User ID của tài khoản đăng nhập có vai trò COACH trên hệ thống này để tạo hồ sơ huấn luyện viên.</Text><Link href="/staff-accounts" style={ui.link}>Chưa có tài khoản? Tạo tài khoản và hồ sơ HLV cùng lúc →</Link></>}
+    {id && <QueryStatus loading={query.loading} error={query.error} retry={query.reload} />}{resource === 'coaches' && !!id && !!selected && <AccountInfo token={token} userId={referenceId(selected.userId)} />}
     {id && !query.loading && !query.error && !selected && <Text style={ui.error}>Không tìm thấy bản ghi. Có thể dữ liệu đã được xóa.</Text>}
     {(!id || selected) && <ResourceForm key={id || 'new'} resource={resource} role={user.role} actorId={actorId} token={token} userId={user.id} defaults={!id && resource === 'attendances' ? { ...(classId ? { classId } : {}), ...(lessonId ? { lessonId } : {}), ...(date ? { date } : {}), ...(scheduleId ? { scheduleId } : {}) } : undefined} initial={selected} onSave={input => id && 'update' in api ? api.update(token, id, input) : api.create(token, input)} onSaved={() => router.dismissTo({ pathname: '/workspace/[resource]', params: { resource } })} />}
   </Screen>;

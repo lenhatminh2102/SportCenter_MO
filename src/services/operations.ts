@@ -24,18 +24,21 @@ function crud(path: string, keys: string[], updateKeys = keys) {
   };
 }
 export const coachesApi = {
-  ...crud('/api/coaches', ['userId', 'fullName', 'phone'], ['fullName', 'phone']),
+  ...crud('/api/coaches', ['userId', 'fullName', 'phone', 'subjectId'], ['fullName', 'phone']),
   me: (token: string) => request<Entity>('/api/coaches/me', { token }),
   myStudents: (token: string) => request<Entity[]>('/api/coaches/my-students', { token }),
 };
 export const subjectsApi = crud('/api/subjects', ['name']);
 export const coursesApi = crud('/api/courses', ['subjectId', 'name', 'description', 'pricing', 'status']);
-export function coursePrice(course: Entity | undefined, classType: unknown): number | undefined {
+// One price per class slot. The BE still stores pricing.personal/group, so the app
+// writes the same value to both (see toCoursePricing) and always reads the group price.
+export function coursePrice(course: Entity | undefined): number | undefined {
   const pricing = course?.pricing;
   if (!pricing || typeof pricing !== 'object') return;
-  const price = (pricing as Entity)[classType === 'PERSONAL' ? 'personal' : 'group'];
+  const price = (pricing as Entity).group;
   if (typeof price === 'number' && Number.isFinite(price) && price >= 0) return price;
 }
+export const toCoursePricing = (price: number) => ({ personal: price, group: price });
 export const lessonsApi = { ...crud('/api/lessons', ['classId', 'learningPathId', 'title', 'description', 'order']), byClass: (token: string, id: string) => request<Entity[]>(`/api/lessons/class/${encodeURIComponent(id)}`, { token }) };
 export const schedulesApi = {
   ...crud('/api/schedules', ['classId', 'lessonId', 'roomId', 'date', 'startTime', 'endTime', 'status']),
@@ -46,12 +49,14 @@ export const activityLogsApi = {
   list: (token: string) => request<Entity[]>('/api/activity-logs', { token }),
   create: (token: string, input: ResourceInput) => request<Entity>('/api/activity-logs', { token, body: fields(input, ['userId', 'action']) }),
 };
-export const classesApi = crud('/api/classes', ['name', 'subjectId', 'courseId', 'coachId', 'classType']);
+// classType is not sent: every class is a group class (BE default GROUP).
+export const classesApi = crud('/api/classes', ['name', 'subjectId', 'courseId', 'coachId']);
 const registrationCrud = crud('/api/class-registrations', ['classId', 'memberId'], ['classId', 'memberId', 'status']);
 export const classRegistrationsApi = { list: registrationCrud.list, create: registrationCrud.create, update: registrationCrud.update };
 export const attendancesApi = { ...crud('/api/attendances', ['memberId', 'classId', 'lessonId', 'date', 'status']), my: (token: string) => request<Entity[]>('/api/attendances/my', { token }) };
 export const learningPathsApi = crud('/api/learning-paths', ['courseId', 'name', 'description']);
-const progressCrud = crud('/api/lesson-progress', ['memberId', 'lessonId', 'status']);
+// Create needs classId (taken from the lesson); update may only send status / coachComment.
+const progressCrud = crud('/api/lesson-progress', ['memberId', 'lessonId', 'classId', 'status'], ['status', 'coachComment']);
 export const lessonProgressApi = { list: progressCrud.list, create: progressCrud.create, update: progressCrud.update };
 export const workoutPlansApi = crud('/api/workout-plans', ['coachId', 'memberId', 'classId', 'goal', 'level', 'plan', 'source', 'status']);
 const resultCrud = crud('/api/workout-results', ['workoutPlanId', 'memberId', 'result', 'comment']);

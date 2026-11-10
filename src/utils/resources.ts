@@ -1,6 +1,6 @@
 import { trainingResources } from './training-resources';
 import { validPhone } from './validation';
-import { coursePrice, referenceId, type Entity, type ResourceInput, type ResourceKey } from '@/services/operations';
+import { coursePrice, toCoursePricing, referenceId, type Entity, type ResourceInput, type ResourceKey } from '@/services/operations';
 export type FormField = { key: string; label: string; required?: boolean; type?: 'id' | 'phone' | 'number' | 'date' | 'time' | 'multiline' | 'money'; options?: { value: string; label: string }[]; createOnly?: boolean; updateOnly?: boolean; relation?: string };
 export type ResourceDefinition = { title: string; singular: string; titleKey: string; fields: FormField[] };
 export const resources: Record<ResourceKey, ResourceDefinition> = {
@@ -13,13 +13,13 @@ export const resources: Record<ResourceKey, ResourceDefinition> = {
   coaches: { title: 'Huấn luyện viên', singular: 'huấn luyện viên', titleKey: 'fullName', fields: [
     { key: 'userId', label: 'User ID tài khoản COACH đã đăng ký', type: 'id', required: true, createOnly: true },
     { key: 'fullName', label: 'Họ và tên', required: true }, { key: 'phone', label: 'Số điện thoại', type: 'phone', required: true },
+    { key: 'subjectId', label: 'Môn thể thao', type: 'id', relation: '/api/subjects', required: true, createOnly: true },
   ] },
   subjects: { title: 'Môn thể thao', singular: 'môn thể thao', titleKey: 'name', fields: [{ key: 'name', label: 'Tên môn thể thao', required: true }] },
   courses: { title: 'Khóa học', singular: 'khóa học', titleKey: 'name', fields: [
     { key: 'subjectId', label: 'Môn thể thao', type: 'id', relation: '/api/subjects', required: true },
     { key: 'name', label: 'Tên khóa học', required: true },
-    { key: 'personalPrice', label: 'Học phí lớp cá nhân (VND)', type: 'money', required: true },
-    { key: 'groupPrice', label: 'Học phí lớp nhóm (VND)', type: 'money', required: true },
+    { key: 'price', label: 'Học phí cho 1 suất trong lớp (VND)', type: 'money', required: true },
     { key: 'description', label: 'Mô tả', type: 'multiline' },
     { key: 'status', label: 'Trạng thái', required: true, options: [{ value: 'ACTIVE', label: 'Hoạt động' }, { value: 'INACTIVE', label: 'Tạm dừng' }] },
   ] },
@@ -33,9 +33,9 @@ export const resources: Record<ResourceKey, ResourceDefinition> = {
     { key: 'classId', label: 'Lớp học', type: 'id', relation: '/api/classes', required: true },
     { key: 'lessonId', label: 'Bài học', type: 'id', relation: '/api/lessons', required: true },
     { key: 'roomId', label: 'Phòng tập', type: 'id', relation: '/api/rooms', required: true },
-    { key: 'date', label: 'Ngày (YYYY-MM-DD)', type: 'date', required: true },
-    { key: 'startTime', label: 'Giờ bắt đầu (HH:mm)', type: 'time', required: true },
-    { key: 'endTime', label: 'Giờ kết thúc (HH:mm)', type: 'time', required: true },
+    { key: 'date', label: 'Ngày học', type: 'date', required: true },
+    { key: 'startTime', label: 'Giờ bắt đầu', type: 'time', required: true },
+    { key: 'endTime', label: 'Giờ kết thúc', type: 'time', required: true },
     { key: 'status', label: 'Trạng thái', required: true, options: [{ value: 'SCHEDULED', label: 'Đã lên lịch' }, { value: 'COMPLETED', label: 'Hoàn thành' }, { value: 'CANCELLED', label: 'Đã hủy' }] },
   ] },
   'activity-logs': { title: 'Lịch sử thao tác', singular: 'nhật ký', titleKey: 'action', fields: [
@@ -47,8 +47,7 @@ export function isResource(value?: string): value is ResourceKey { return !!valu
 export const canWriteResource = (role?: string) => role === 'CENTER_MANAGER';
 export function initialValues(resource: ResourceKey, item?: Entity): Record<string, string> {
   return Object.fromEntries(resources[resource].fields.map(field => {
-    const value = resource === 'courses' && field.key === 'personalPrice' ? coursePrice(item, 'PERSONAL')
-      : resource === 'courses' && field.key === 'groupPrice' ? coursePrice(item, 'GROUP') : item?.[field.key];
+    const value = resource === 'courses' && field.key === 'price' ? coursePrice(item) : item?.[field.key];
     return [field.key, field.type === 'id' ? referenceId(value) : field.type === 'date' && typeof value === 'string' ? value.slice(0, 10) : value === undefined || value === null ? field.options?.[0].value || (field.type === 'number' ? '1' : '') : String(value)];
   }));
 }
@@ -75,10 +74,19 @@ export function validateResource(resource: ResourceKey, values: Record<string, s
     else if (field.options && !field.options.some(option => option.value === value)) errors[field.key] = 'Vui lòng chọn giá trị hợp lệ.';
   }
   if (resource === 'schedules' && !errors.startTime && !errors.endTime && values.startTime >= values.endTime) errors.endTime = 'Giờ kết thúc phải sau giờ bắt đầu trong cùng ngày.';
-  if (resource === 'courses' && typeof payload.personalPrice === 'number' && typeof payload.groupPrice === 'number') {
-    payload.pricing = { personal: payload.personalPrice, group: payload.groupPrice };
-    delete payload.personalPrice;
-    delete payload.groupPrice;
+  if (resource === 'courses' && typeof payload.price === 'number') {
+    payload.pricing = toCoursePricing(payload.price);
+    delete payload.price;
+  }
+  if (resource === 'lesson-progress') {
+    // BE: create needs classId (from the chosen lesson); update must not send member/lesson/class.
+    if (!editing) { if (!values.classId) errors.lessonId = errors.lessonId || 'Chọn lại bài học để xác định lớp.'; else payload.classId = values.classId; }
+    if (editing && !payload.coachComment) delete payload.coachComment;
+  }
+  if (resource === 'workout-plans') {
+    // BE: a plan targets exactly one member OR one class.
+    if (values.planTarget === 'class') { payload.memberId = ''; delete errors.memberId; if (!values.classId) errors.classId = 'Chọn lớp nhận kế hoạch.'; }
+    else { payload.classId = ''; delete errors.classId; if (!values.memberId) errors.memberId = 'Chọn học viên nhận kế hoạch.'; }
   }
   return { errors, payload };
 }

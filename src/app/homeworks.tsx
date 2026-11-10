@@ -8,7 +8,6 @@ import { classesApi, coachesApi, entityId, referenceId, referenceLabel } from '@
 import { AccessScreen, QueryStatus } from '@/components/sport/access';
 import { Button, Field, Screen } from '@/components/sport/ui';
 import { ui } from '@/components/sport/styles';
-
 function HomeworkForm({ token, onSaved }: { token: string; onSaved: () => void }) {
   const load = useCallback(async () => {
     const [coach, classes, students] = await Promise.all([coachesApi.me(token), classesApi.list(token), coachesApi.myStudents(token)]);
@@ -40,7 +39,7 @@ function HomeworkForm({ token, onSaved }: { token: string; onSaved: () => void }
     {choices.map(item => <Button key={referenceId(item)} secondary={targetId !== referenceId(item)} disabled={busy} title={referenceLabel(item)} onPress={() => setTargetId(referenceId(item))} />)}
     {!query.loading && !choices.length && <Text style={ui.body}>Chưa có lớp hoặc học viên có thể chọn.</Text>}
     <Field label="Tiêu đề" maxLength={200} value={title} onChangeText={setTitle} editable={!busy} /><Field label="Nội dung" multiline value={description} onChangeText={setDescription} editable={!busy} /><Field label="Hạn nộp (YYYY-MM-DD, tùy chọn)" value={dueDate} onChangeText={setDueDate} editable={!busy} /><Field label="Liên kết đính kèm (mỗi dòng một URL, tùy chọn)" multiline autoCapitalize="none" value={attachments} onChangeText={setAttachments} editable={!busy} />
-    {!!error && <Text accessibilityRole="alert" style={ui.error}>{error}</Text>}<Button disabled={busy || query.loading || !!query.error} title={busy ? 'Đang giao…' : 'Giao bài tập và thông báo'} onPress={() => void save()} />
+    {!!error && <Text accessibilityRole="alert" style={ui.error}>{error}</Text>}<Button disabled={busy || query.loading || !!query.error} title={busy ? 'Đang giao…' : 'Giao bài tập'} onPress={() => void save()} />
   </View>;
 }
 export default function Homeworks() {

@@ -10,7 +10,7 @@ export const paymentsApi = {
   create: (token: string, classRegistrationId: string, paymentMethod: PaymentMethod) => request<Entity>('/api/payments', { token, body: { classRegistrationId, paymentMethod } }),
   update: (token: string, id: string, paymentMethod: PaymentMethod) => request<Entity>(`/api/payments/${encodeURIComponent(id)}`, { token, method: 'PUT', body: { paymentMethod } }),
   vnpay: (token: string, id: string) => request<{ paymentUrl: string }>(`/api/payments/${encodeURIComponent(id)}/vnpay`, { token, body: {} }),
-  checkout: (token: string, id: string) => request<{ paymentUrl: string }>(`/api/payments/${encodeURIComponent(id)}/checkout`, { token, body: {} }),
+  checkout: (token: string, id: string) => request<{ paymentUrl: string }>(`/api/payments/${encodeURIComponent(id)}/vnpay`, { token, body: {} }),
   simulate: (token: string, id: string, status: 'SUCCESS' | 'FAILED') => request<Entity>(`/api/payments/${encodeURIComponent(id)}/simulate`, { token, body: { status } }),
 };
 export const canManagePayments = (role?: string) => ['MEMBER', 'CENTER_MANAGER', 'RECEPTIONIST'].includes(role || '');
@@ -31,4 +31,10 @@ export function validatePaymentUrl(value: string): string {
   const url = new URL(value);
   if (url.protocol !== 'https:' || !['sandbox.vnpayment.vn', 'pay.vnpay.vn', 'pay.payos.vn'].includes(url.hostname) || url.username || url.password || url.port) throw new Error('Địa chỉ thanh toán từ máy chủ không hợp lệ.');
   return url.toString();
+}
+// The BE does not cancel a PENDING payment when its registration is cancelled.
+export const isVoidedPayment = (payment: Entity, registration?: Entity) => payment.status === 'PENDING' && registration?.status === 'CANCELLED';
+export function paymentStatusLabel(payment: Entity, registration?: Entity) {
+  if (isVoidedPayment(payment, registration)) return 'Không còn hiệu lực · đăng ký đã hủy';
+  return payment.status === 'SUCCESS' ? 'Thanh toán thành công' : payment.status === 'FAILED' ? 'Thanh toán thất bại' : 'Chờ thanh toán';
 }

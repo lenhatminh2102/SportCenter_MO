@@ -14,16 +14,16 @@ export function detailFor(resource: ResourceKey, item: Entity): string {
     case 'rooms': return `Phòng ${String(item.roomNumber || '')} · ${String(item.capacity || '')} người\n${status}`;
     case 'coaches': return String(item.phone || '');
     case 'subjects': return 'Môn thể thao trên hệ thống';
-    case 'courses': return `Cá nhân: ${tuition(coursePrice(item, 'PERSONAL'))} · Nhóm: ${tuition(coursePrice(item, 'GROUP'))}\n${status} · ${String(item.description || '')}`;
+    case 'courses': return `Học phí: ${tuition(coursePrice(item))} / suất\n${status} · ${String(item.description || '')}`;
     case 'lessons': return `Bài ${String(item.order)} · ${referenceLabel(item.learningPathId)}\n${String(item.description || '')}`;
     case 'schedules': return `${referenceLabel(item.classId)} · ${referenceLabel(item.lessonId)}\nPhòng: ${referenceLabel(item.roomId)} · ${status}`;
-    case 'activity-logs': return `${referenceLabel(item.userId)}\n${item.createdAt ? new Date(String(item.createdAt)).toLocaleString('vi-VN', { timeZone: 'Asia/Bangkok' }) : ''}`;
-    case 'classes': return `${item.classType === 'PERSONAL' ? 'Cá nhân 1–1' : 'Lớp nhóm'} · ${referenceLabel(item.subjectId)} · ${referenceLabel(item.courseId)}\nHLV: ${referenceLabel(item.coachId)}`;
+    case 'activity-logs': return [referenceLabel(item.userId), item.source === 'AUTOMATIC' ? 'Ghi tự động' : 'Ghi thủ công', item.createdAt ? new Date(String(item.createdAt)).toLocaleString('vi-VN', { timeZone: 'Asia/Bangkok' }) : ''].filter(Boolean).join('\n');
+    case 'classes': return `${referenceLabel(item.subjectId)} · ${referenceLabel(item.courseId)}\nHLV: ${referenceLabel(item.coachId)}`;
     case 'class-registrations': return `${referenceLabel(item.memberId)}\n${status}`;
     case 'attendances': return `${referenceLabel(item.classId)} · ${referenceLabel(item.lessonId)}\n${status}`;
     case 'learning-paths': return `${referenceLabel(item.courseId)}\n${String(item.description || '')}`;
     case 'lesson-progress': return `${referenceLabel(item.memberId)}\n${status}`;
-    case 'workout-plans': return `${referenceLabel(item.memberId)} · HLV ${referenceLabel(item.coachId)}\n${String(item.plan || '')}\n${status}`;
+    case 'workout-plans': return `${item.memberId ? referenceLabel(item.memberId) : `Cả lớp ${referenceLabel(item.classId)}`} · HLV ${referenceLabel(item.coachId)}\n${String(item.plan || '')}\n${status}`;
     case 'workout-results': return `${referenceLabel(item.memberId)} · ${referenceLabel(item.workoutPlanId)}\n${String(item.comment || '')}`;
   }
 }

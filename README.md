@@ -39,14 +39,14 @@ Smoke flow: register a test account, log in, confirm homepage email, log out. Ch
 
 ## Person 1: Auth and Members
 
-All 11 endpoint adapters are connected to UI:
+Authentication and member endpoints connected to UI:
 
 | Endpoint | UI |
 | --- | --- |
 | POST /api/auth/register | /register |
 | POST /api/auth/login | /login |
 | GET /api/auth/me | login validation and /account refresh |
-| POST /api/auth/google | /login Google sign-in (OAuth setup required) |
+
 | GET /api/members/me | /profile |
 | POST /api/members/me | /profile when server returns 404 |
 | PUT /api/members/me | /profile for existing profile |
@@ -57,13 +57,7 @@ All 11 endpoint adapters are connected to UI:
 
 The directory refreshes on return from editing and supports pull-to-refresh. A protected 401 clears the matching session; a 403 displays a permission error. Backend remains responsible for enforcing authorization. New member profiles require an existing MEMBER userId; registration and member-profile creation are separate APIs.
 
-### Google configuration
-
-Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to your OAuth Web Client ID (matching backend GOOGLE_CLIENT_ID). On web, authorize the exact browser origin (e.g. http://localhost:8082) in Google Cloud Console. The button uses Google Identity Services to obtain an ID token and exchanges it with /api/auth/google.
-
-Native sign-in uses @react-native-google-signin/google-signin and needs a development build, not Expo Go. Android needs an OAuth Android client matching your app package and signing SHA-1 in the same Google Cloud project. iOS needs EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID; app.config.ts adds the corresponding reversed URL scheme. Configure app package/bundle identifiers for your own Google project before building. No client secret belongs in the app. Without Client IDs, the UI explicitly reports that Google is not configured; email authentication remains available.
-
-Tests: node --test tests/auth-api.test.cjs. These verify API contracts and error/permission behavior with mocked responses. Live successful Google sign-in and native-device validation require the developer's OAuth configuration.
+Tests: node --test tests/auth-api.test.cjs. These verify email/password API contracts and error handling with mocked responses.
 
 ## Persons 2 and 3: 23 endpoints
 
@@ -99,7 +93,7 @@ Class cards link to a preselected real registration form. New registrations are 
 
 Open Account → Lịch tập, khóa học & trung tâm. Missing member profiles link to /profile; missing coach profiles require a manager to create them. Relation pickers use live backend lists. Backend errors remain visible, including duplicate registrations and dependency conflicts.
 
-Validation: 74 mocked API/permission/validation tests, TypeScript, Expo lint and web export. Successful writes with actual manager/coach/member accounts and device interaction still need live manual testing; existing backend data was not modified by these tests. Google Sign-In and email OTP are now integrated; see docs/google-otp-setup.md for required OAuth/SMTP setup and live-test limitations.
+Validation: 74 mocked API/permission/validation tests, TypeScript, Expo lint and web export. Successful writes with actual manager/coach/member accounts and device interaction still need live manual testing; existing backend data was not modified by these tests.
 
 ## Coach and manager dashboards
 
@@ -113,21 +107,16 @@ Dashboard requests run in parallel and refresh when the page regains focus or on
 
 `npm test` includes dashboard summary, date, partial-failure and staff-navigation tests. Native drawer gestures/device layout and successful staff login still require manual testing with real staff accounts. Sessions remain in-memory as before.
 
-## Figma UI and Google email OTP
-
-The public home, login/register and staff surfaces now follow the supplied src.zip design. Google sign-in supports the newer backend OTP challenge, verification and resend flow. See [setup and validation](docs/google-otp-setup.md). Real OAuth and email delivery require the developer client IDs and backend SMTP configuration.
-
-
 ## Remaining API integration and page redesign (2026-10-17)
 
-The app now connects the remaining client-facing groups in the supplied backend: Rooms, Notifications, Support requests, Payments, coach profile/students and coach teaching schedules. This adds 19 client API operations. VNPay return/IPN stay backend callbacks.
+The app now connects the remaining client-facing groups in the supplied backend: Rooms, Support requests, Payments, coach profile/students and coach teaching schedules. This adds 19 client API operations. VNPay return/IPN stay backend callbacks.
 
 | Area | Screen | Behavior |
 | --- | --- | --- |
 | Rooms | /workspace/rooms | Manager CRUD; authenticated room viewing; room detail when editing |
 | Scheduling | /workspace/schedules | Required room picker, server conflict errors, personal coach schedule endpoint |
 | Tuition | /pricing, /workspace/courses | Real course prices; manager can enter nonnegative tuition |
-| Notifications | /notifications, /notification-compose | Own inbox, unread filter, read/unread toggle; staff compose to existing users |
+
 | Support | /support | Members create/view their requests; manager/receptionist resolve or reopen |
 | Payments | /payments, /payment-edit | Own member payment history, create pending requests, update method, VNPay checkout |
 | Coach | /coach-students | Confirmed students from assigned classes; /coaches/me used for current profile |
@@ -140,7 +129,7 @@ The supplied BE hardcodes VNPay sandbox/test mode. Set its VNPAY_TMN_CODE, VNPAY
 
 For optional demo simulation only: set frontend EXPO_PUBLIC_ENABLE_PAYMENT_DEMO=true and backend PAYMENT_MODE=mock, then restart. The default UI hides simulation. Each simulation asks for confirmation and is labeled as testing; success can confirm the class registration. Cash/transfer records remain pending until a supported backend process confirms them; no manual success endpoint is invented.
 
-Payment amounts always come from Course.price. The app does not send amount, status or paymentDate in create/update payloads. Creating a request does not charge a card. Google Client ID configuration remains deferred as requested.
+Payment amounts always come from Course.price. The app does not send amount, status or paymentDate in create/update payloads. Creating a request does not charge a card.
 
 ### Verification and limits
 
@@ -152,7 +141,7 @@ The supplied notifications/support/payment list APIs return broad datasets. Fron
 
 MEMBER logins now land on /member through /dashboard. Successful email registration signs in automatically; if that second request fails, the app confirms account creation and links to login without registering again. The public root redirects signed-in members to their personal home. Coach/manager routes remain distinct.
 
-The member home shows own confirmed classes, pending payments, unread notifications, next session and real class suggestions. A missing member profile prompts setup; unavailable datasets show a dash and an error, not fabricated zero totals. A stable member shell provides Home, Classes, My schedule and Account tabs without remounting the root navigator. Related pages return to the member home.
+The member home shows own confirmed classes, pending payments and the next scheduled session. A missing member profile prompts setup; unavailable datasets show a dash and an error, not fabricated zero totals. A stable member shell provides Home, Classes, My schedule and Account tabs without remounting the root navigator. Related pages return to the member home.
 
 Payment corrections:
 - Entering via a registration reuses its existing pending request instead of displaying an empty creation form.

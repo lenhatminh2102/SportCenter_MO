@@ -28,9 +28,9 @@ const samples = {
   'lesson-progress': { memberId: id, lessonId: id, status: 'COMPLETED' },
   'workout-plans': { coachId: id, memberId: id, classId: id, goal: 'Fitness', level: 'BEGINNER', plan: 'Squat 3x10', source: 'COACH', status: 'DRAFT' },
   'workout-results': { workoutPlanId: id, memberId: id, result: 'Completed', comment: 'Good' },
-  coaches: { userId: id, fullName: 'Coach Test', phone: '0901234567' },
+  coaches: { userId: id, fullName: 'Coach Test', phone: '0901234567', subjectId: '507f1f77bcf86cd799439012' },
   subjects: { name: 'Yoga' },
-  courses: { subjectId: id, name: 'Yoga Basics', description: 'Intro', pricing: { personal: 900000, group: 500000 }, status: 'ACTIVE' },
+  courses: { subjectId: id, name: 'Yoga Basics', description: 'Intro', pricing: { personal: 500000, group: 500000 }, status: 'ACTIVE' },
   lessons: { classId: id, learningPathId: id, title: 'Lesson 1', description: 'Intro', order: 1 },
   schedules: { classId: id, lessonId: id, roomId: id, date: '2026-10-14', startTime: '08:00', endTime: '09:00', status: 'SCHEDULED' },
   'activity-logs': { userId: id, action: 'Created a lesson' },
@@ -45,7 +45,12 @@ for (const resource of Object.keys(samples)) {
       if (method === 'create' || method === 'update') {
         const expected = { ...samples[resource] };
         if (resource === 'class-registrations' && method === 'create') delete expected.status;
-        if (resource === 'coaches' && method === 'update') delete expected.userId;
+        // Lesson progress updates may only carry status (BE rejects member/lesson/class changes).
+        if (resource === 'lesson-progress' && method === 'update') { delete expected.memberId; delete expected.lessonId; }
+        if (resource === 'coaches' && method === 'update') {
+          delete expected.userId;
+          delete expected.subjectId;
+        }
         assert.deepEqual(JSON.parse(options.body), expected);
       } else assert.equal(options.body, undefined);
       return { ok: true, status: 200, json: async () => ({ success: true, data: [] }) };
@@ -65,13 +70,17 @@ test('member personal schedule uses its protected /my endpoint', async () => {
   });
   await operations.schedulesApi.my('member-token');
 });
-test('course pricing follows the class type and defaults older classes to group pricing', () => {
+test('a course has one price per class slot', () => {
   const { operations } = modules();
-  const course = samples.courses;
-  assert.equal(operations.coursePrice(course, 'PERSONAL'), 900000);
-  assert.equal(operations.coursePrice(course, 'GROUP'), 500000);
-  assert.equal(operations.coursePrice(course, undefined), 500000);
-  assert.equal(operations.coursePrice({ pricing: { group: 0 } }, 'PERSONAL'), undefined);
+  assert.equal(operations.coursePrice(samples.courses), 500000);
+  // Older courses with two prices: the group price is the slot price.
+  assert.equal(operations.coursePrice({ pricing: { personal: 900000, group: 400000 } }), 400000);
+  assert.equal(operations.coursePrice({ pricing: { personal: 900000 } }), undefined);
+  assert.equal(JSON.stringify(operations.toCoursePricing(300000)), JSON.stringify({ personal: 300000, group: 300000 }));
+});
+test('classes never send a class type', () => {
+  const { schema } = modules();
+  assert.equal(schema.resources.classes.fields.some(field => field.key === 'classType'), false);
 });
 test('all resource writes require the manager role in UI', () => {
   const { schema } = modules();
@@ -93,7 +102,15 @@ test('lesson order is a positive integer and is serialized as a number', () => {
   assert.equal(schema.validateResource('lessons', values, false).payload.order, 3);
   for (const order of ['0', '-1', '1.5', 'abc']) assert.ok(schema.validateResource('lessons', { ...values, order }, false).errors.order);
 });
-test('coach edits do not require userId and enum values cannot be forged', () => {
+test('coach creation requires a sport and includes it in the form payload', () => {
+  const { schema } = modules();
+  const values = samples.coaches;
+  const { errors, payload } = schema.validateResource('coaches', values, false);
+  assert.equal(Object.keys(errors).length, 0);
+  assert.equal(payload.subjectId, values.subjectId);
+  assert.ok(schema.validateResource('coaches', { ...values, subjectId: '' }, false).errors.subjectId);
+});
+test('coach edits do not require userId or subjectId and enum values cannot be forged', () => {
   const { schema } = modules();
   assert.equal(Object.keys(schema.validateResource('coaches', { fullName: 'Coach', phone: '0901234567' }, true).errors).length, 0);
   assert.ok(schema.validateResource('courses', { name: 'Yoga', status: 'ADMIN' }, false).errors.status);
@@ -149,12 +166,36 @@ test('optional workout class can be cleared without sending an invalid ObjectId'
 test('new schedules require rooms and course tuition is a real nonnegative number', () => {
   const { schema } = modules();
   assert.ok(schema.validateResource('schedules', { ...samples.schedules, roomId: '' }, false).errors.roomId);
-  const fields = { subjectId: id, name: 'Yoga', personalPrice: '900000', groupPrice: '0', status: 'ACTIVE' };
+  const fields = { subjectId: id, name: 'Yoga', price: '0', status: 'ACTIVE' };
   const { payload, errors } = schema.validateResource('courses', fields, false);
   assert.equal(Object.keys(errors).length, 0);
-  assert.equal(payload.pricing.personal, 900000);
-  assert.equal(payload.pricing.group, 0);
-  assert.equal(schema.initialValues('courses', { pricing: payload.pricing }).groupPrice, '0');
-  for (const price of ['', '-1', 'NaN', 'Infinity']) assert.ok(schema.validateResource('courses', { ...fields, groupPrice: price }, false).errors.groupPrice);
+  assert.equal(JSON.stringify(payload.pricing), JSON.stringify({ personal: 0, group: 0 }));
+  assert.equal(payload.price, undefined);
+  assert.equal(schema.initialValues('courses', { pricing: { personal: 900000, group: 450000 } }).price, '450000');
+  for (const price of ['', '-1', 'NaN', 'Infinity']) assert.ok(schema.validateResource('courses', { ...fields, price }, false).errors.price);
   assert.ok(schema.validateResource('rooms', { roomNumber: '001', name: 'Yoga', capacity: '1.5', status: 'ACTIVE' }, false).errors.capacity);
+});
+
+test('workout plans target exactly one member or one class', () => {
+  const { schema } = modules();
+  const base = { coachId: id, goal: 'Giảm cân', level: 'BEGINNER', plan: 'Squat', source: 'COACH', status: 'DRAFT' };
+  const member = schema.validateResource('workout-plans', { ...base, planTarget: 'member', memberId: id, classId: id }, false);
+  assert.equal(Object.keys(member.errors).length, 0);
+  assert.equal(member.payload.memberId, id);
+  assert.equal(member.payload.classId, '');
+  const whole = schema.validateResource('workout-plans', { ...base, planTarget: 'class', memberId: id, classId: id }, false);
+  assert.equal(Object.keys(whole.errors).length, 0);
+  assert.equal(whole.payload.memberId, '');
+  assert.equal(whole.payload.classId, id);
+  assert.ok(schema.validateResource('workout-plans', { ...base, planTarget: 'class', classId: '' }, false).errors.classId);
+  assert.ok(schema.validateResource('workout-plans', { ...base, planTarget: 'member', memberId: '' }, false).errors.memberId);
+});
+test('lesson progress sends classId on create and only status/comment on update', () => {
+  const { schema } = modules();
+  const created = schema.validateResource('lesson-progress', { memberId: id, lessonId: id, classId: id, status: 'IN_PROGRESS' }, false);
+  assert.equal(Object.keys(created.errors).length, 0);
+  assert.equal(created.payload.classId, id);
+  assert.ok(schema.validateResource('lesson-progress', { memberId: id, lessonId: id, status: 'IN_PROGRESS' }, false).errors.lessonId);
+  const updated = schema.validateResource('lesson-progress', { memberId: id, lessonId: id, status: 'COMPLETED', coachComment: ' Tốt ' }, true);
+  assert.equal(JSON.stringify(Object.keys(updated.payload).sort()), JSON.stringify(['coachComment', 'status']));
 });

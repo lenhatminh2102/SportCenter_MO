@@ -4,7 +4,6 @@ const options = (pairs: [string, string][]) => pairs.map(([value, label]) => ({ 
 export const trainingResources: Record<'classes' | 'class-registrations' | 'attendances' | 'learning-paths' | 'lesson-progress' | 'workout-plans' | 'workout-results', ResourceDefinition> = {
   classes: { title: 'Lớp học', singular: 'lớp học', titleKey: 'name', fields: [
     { key: 'name', label: 'Tên lớp học', required: true }, relation('courseId', 'Khóa học', 'courses'), relation('coachId', 'Huấn luyện viên', 'coaches'),
-    { key: 'classType', label: 'Loại lớp', required: true, createOnly: true, options: options([['GROUP', 'Lớp nhóm'], ['PERSONAL', 'Cá nhân 1–1']]) },
   ] },
   'class-registrations': { title: 'Đăng ký lớp', singular: 'đăng ký lớp', titleKey: 'classId', fields: [
     relation('classId', 'Lớp học', 'classes'), relation('memberId', 'Hội viên', 'members'),
@@ -12,18 +11,19 @@ export const trainingResources: Record<'classes' | 'class-registrations' | 'atte
   ] },
   attendances: { title: 'Điểm danh', singular: 'điểm danh', titleKey: 'date', fields: [
     relation('classId', 'Lớp học', 'classes'), relation('memberId', 'Hội viên', 'members'), relation('lessonId', 'Bài học', 'lessons'),
-    { key: 'date', label: 'Ngày (YYYY-MM-DD)', type: 'date', required: true },
+    { key: 'date', label: 'Ngày điểm danh', type: 'date', required: true },
     { key: 'status', label: 'Điểm danh', required: true, options: options([['PRESENT', 'Có mặt'], ['ABSENT', 'Vắng mặt']]) },
   ] },
   'learning-paths': { title: 'Lộ trình học', singular: 'lộ trình học', titleKey: 'name', fields: [
     relation('courseId', 'Khóa học', 'courses'), { key: 'name', label: 'Tên lộ trình', required: true }, { key: 'description', label: 'Mô tả', type: 'multiline' },
   ] },
   'lesson-progress': { title: 'Tiến độ bài học', singular: 'tiến độ bài học', titleKey: 'lessonId', fields: [
-    relation('memberId', 'Hội viên', 'members'), relation('lessonId', 'Bài học', 'lessons'),
+    { ...relation('lessonId', 'Bài học', 'lessons'), createOnly: true }, { ...relation('memberId', 'Hội viên', 'members'), createOnly: true },
     { key: 'status', label: 'Tiến độ', required: true, options: options([['NOT_STARTED', 'Chưa bắt đầu'], ['IN_PROGRESS', 'Đang học'], ['COMPLETED', 'Hoàn thành']]) },
+    { key: 'coachComment', label: 'Nhận xét của huấn luyện viên', type: 'multiline', updateOnly: true },
   ] },
   'workout-plans': { title: 'Kế hoạch tập luyện', singular: 'kế hoạch tập luyện', titleKey: 'goal', fields: [
-    relation('coachId', 'Huấn luyện viên', 'coaches'), relation('memberId', 'Hội viên', 'members'), relation('classId', 'Lớp học (tùy chọn)', 'classes', false),
+    relation('coachId', 'Huấn luyện viên', 'coaches'), relation('memberId', 'Học viên nhận kế hoạch', 'members', false), relation('classId', 'Lớp nhận kế hoạch', 'classes', false),
     { key: 'goal', label: 'Mục tiêu', required: true },
     { key: 'level', label: 'Trình độ', required: true, options: options([['BEGINNER', 'Mới bắt đầu'], ['INTERMEDIATE', 'Trung cấp'], ['ADVANCED', 'Nâng cao']]) },
     { key: 'plan', label: 'Nội dung kế hoạch tập', type: 'multiline', required: true },

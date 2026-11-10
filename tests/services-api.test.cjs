@@ -16,15 +16,24 @@ function loadService(name, fetch = async () => ({ ok: true, status: 200, json: a
   return load(`src/services/${name}.ts`);
 }
 const cases = [
+  ['staff', 'staffApi', 'list', [], '/staff/accounts', 'GET', undefined],
+  ['staff', 'staffApi', 'update', ['a/b', { role: 'COACH', subjectId: 'sport', status: 'INACTIVE' }], '/staff/accounts/a%2Fb', 'PATCH', { role: 'COACH', subjectId: 'sport', status: 'INACTIVE' }],
+  ['manager', 'managerApi', 'report', ['2026-11-01', '2026-11-30'], '/manager/reports?from=2026-11-01&to=2026-11-30', 'GET', undefined],
+  ['manager', 'managerApi', 'listPlans', [], '/manager/membership-plans', 'GET', undefined],
+  ['manager', 'managerApi', 'createPlan', [{ name: 'Tháng', price: 400000, durationDays: 30, status: 'ACTIVE' }], '/manager/membership-plans', 'POST', { name: 'Tháng', price: 400000, durationDays: 30, status: 'ACTIVE' }],
+  ['manager', 'managerApi', 'updatePlan', ['a/b', { status: 'INACTIVE' }], '/manager/membership-plans/a%2Fb', 'PATCH', { status: 'INACTIVE' }],
+  ['manager', 'managerApi', 'getMembership', ['a/b'], '/manager/members/a%2Fb/membership', 'GET', undefined],
+  ['manager', 'managerApi', 'assignMembership', ['a/b', 'plan'], '/manager/members/a%2Fb/membership', 'POST', { planId: 'plan' }],
+  ['manager', 'managerApi', 'renewMembership', ['a/b', '2026-11-30T10:00:00.000Z'], '/manager/members/a%2Fb/membership/renew', 'POST', { expectedExpiresAt: '2026-11-30T10:00:00.000Z' }],
+  ['manager', 'managerApi', 'getRoleAccess', [], '/manager/role-access', 'GET', undefined],
+  ['manager', 'managerApi', 'updateRoleAccess', ['COACH', []], '/manager/role-access/COACH', 'PUT', { disabled: [] }],
   ['notifications', 'notificationsApi', 'my', [], '/notifications/my', 'GET', undefined],
   ['operations', 'attendancesApi', 'my', [], '/attendances/my', 'GET', undefined],
   ['operations', 'lessonsApi', 'byClass', ['a/b'], '/lessons/class/a%2Fb', 'GET', undefined],
   ['homeworks', 'homeworksApi', 'my', [], '/homeworks/my', 'GET', undefined],
   ['homeworks', 'homeworksApi', 'create', [{ classId: 'c', title: 'Practice', description: 'Run', attachments: ['https://example.com'] }], '/homeworks', 'POST', { classId: 'c', title: 'Practice', description: 'Run', attachments: ['https://example.com'] }],
   ['members', 'membersApi', 'frontDesk', [{ fullName: ' An ', phone: '090 123 4567', goal: ' Fit ', level: 'BEGINNER' }, ' AN@EXAMPLE.COM ', 'secret123'], '/members/front-desk', 'POST', { fullName: 'An', phone: '0901234567', goal: 'Fit', level: 'BEGINNER', email: 'an@example.com', password: 'secret123' }],
-  ['notifications', 'notificationsApi', 'list', [], '/notifications', 'GET', undefined],
   ['notifications', 'notificationsApi', 'create', [{ userId: 'u', title: ' News ', message: ' Hello ' }], '/notifications', 'POST', { userId: 'u', title: 'News', message: 'Hello' }],
-  ['notifications', 'notificationsApi', 'setRead', ['a/b', false], '/notifications/a%2Fb', 'PUT', { isRead: false }],
   ['support', 'supportApi', 'list', [], '/support-requests', 'GET', undefined],
   ['support', 'supportApi', 'create', ['m', ' Help '], '/support-requests', 'POST', { memberId: 'm', message: 'Help' }],
   ['support', 'supportApi', 'update', ['a/b', 'RESOLVED'], '/support-requests/a%2Fb/status', 'PUT', { status: 'RESOLVED' }],
@@ -41,6 +50,8 @@ const cases = [
   ['coach-teaching', 'coachAttendanceApi', 'create', ['m', 's', 'PRESENT'], '/attendances/coach', 'POST', { memberId: 'm', scheduleId: 's', status: 'PRESENT' }],
   ['coach-teaching', 'coachAttendanceApi', 'bySchedule', ['s/id'], '/attendances/schedule/s%2Fid', 'GET', undefined],
   ['rooms', 'roomsApi', 'get', ['a/b'], '/rooms/a%2Fb', 'GET', undefined],
+  ['staff', 'staffApi', 'createAccount', [{ email: ' HLV@Center.VN ', password: 'secret1', role: 'COACH', fullName: ' Minh ', phone: '090 123 4567', subjectId: 's' }], '/staff/accounts', 'POST', { email: 'hlv@center.vn', password: 'secret1', role: 'COACH', fullName: 'Minh', phone: '0901234567', subjectId: 's' }],
+  ['staff', 'staffApi', 'createAccount', [{ email: 'le@center.vn', password: 'secret1', role: 'RECEPTIONIST', fullName: 'Lan', phone: '0901234567', subjectId: 's' }], '/staff/accounts', 'POST', { email: 'le@center.vn', password: 'secret1', role: 'RECEPTIONIST', fullName: 'Lan', phone: '0901234567' }],
 ];
 test('receipt authenticates with a header and reads HTML instead of a JSON envelope', async () => {
   const { paymentsApi } = loadService('payments', async (url, options) => {
@@ -92,7 +103,6 @@ test('notification and support ownership exclude foreign or missing references',
   assert.equal(n.ownNotifications([{ userId: { _id: 'u' } }, { userId: 'other' }, {}], 'u').length, 1);
   assert.equal(s.ownSupport([{ memberId: 'm' }, { memberId: { id: 'other' } }, {}], 'm').length, 1);
   assert.equal(n.ownNotifications([{}], '').length, 0); assert.equal(s.ownSupport([{}], '').length, 0);
-  assert.equal(n.canSendNotification('MEMBER'), false); assert.equal(n.canSendNotification('COACH'), true);
   assert.equal(s.canResolveSupport('COACH'), false); assert.equal(s.canResolveSupport('RECEPTIONIST'), true);
 });
 test('payment ownership resolves populated and unpopulated registrations', () => {
@@ -127,7 +137,6 @@ test('member homepage scopes account data and tolerates one unavailable dataset'
   const responses = {
     '/api/members/me': { _id: 'm', fullName: 'Test Member' },
     '/api/classes': [{ _id: 'c', name: 'Yoga' }],
-    '/api/notifications/my': [{ userId: 'u', isRead: false }, { userId: 'other', isRead: false }],
     '/api/class-registrations': [{ _id: 'r', memberId: 'm', status: 'PENDING_PAYMENT' }, { _id: 'foreign', memberId: 'other', status: 'CONFIRMED' }],
     '/api/payments': [{ classRegistrationId: 'r', status: 'PENDING' }, { classRegistrationId: 'foreign', status: 'PENDING' }],
   };
@@ -136,8 +145,8 @@ test('member homepage scopes account data and tolerates one unavailable dataset'
     if (path === '/api/schedules/my') return { ok: false, status: 500, json: async () => ({ success: false, message: 'Schedule unavailable' }) };
     return { ok: true, status: 200, json: async () => ({ success: true, data: responses[path] }) };
   });
-  const data = await home.loadMemberHome('token', 'u');
-  assert.equal(data.unread, 1); assert.equal(data.registrations.length, 1); assert.equal(data.payments.length, 1);
+  const data = await home.loadMemberHome('token');
+  assert.equal(data.registrations.length, 1); assert.equal(data.payments.length, 1);
   assert.equal(data.schedules, null); assert.equal(data.classes.length, 1); assert.equal(data.errors.length, 1);
 });
 test('new member without profile can browse classes without loading personal billing', async () => {
@@ -147,9 +156,10 @@ test('new member without profile can browse classes without loading personal bil
     if (path === '/api/members/me') return { ok: false, status: 404, json: async () => ({ success: false, message: 'No profile' }) };
     return { ok: true, status: 200, json: async () => ({ success: true, data: [] }) };
   });
-  const data = await home.loadMemberHome('token', 'u');
+  const data = await home.loadMemberHome('token');
   assert.equal(data.profileMissing, true); assert.equal(data.errors.length, 0); assert.equal(data.classes.length, 0);
   assert.equal(data.payments, null); assert.equal(calls.includes('/api/payments'), false);
+  assert.equal(calls.includes('/api/notifications/my'), false);
 });
 test('member upcoming sessions exclude past and cancelled appointments in Bangkok time', () => {
   const { upcomingMemberSessions } = loadService('member-home');
@@ -249,4 +259,155 @@ test('attendance schedule choices match selected class and day and exclude cance
   const schedules = [{ _id: 'valid', classId: { _id: 'c' }, date: '2026-10-17T00:00:00Z', status: 'SCHEDULED', startTime: '08:00' }, { _id: 'wrong-class', classId: 'other', date: '2026-10-17', status: 'SCHEDULED' }, { _id: 'wrong-day', classId: 'c', date: '2026-10-18', status: 'SCHEDULED' }, { _id: 'cancelled', classId: 'c', date: '2026-10-17', status: 'CANCELLED' }];
   assert.deepEqual(Array.from(classSessions(schedules, 'c', '2026-10-17'), item => item._id), ['valid']);
   assert.equal(attendanceMembers([{ class: { _id: 'c' }, member: { _id: 'm' } }, { class: 'other', member: { _id: 'other-m' } }], 'c').length, 1);
+});
+test('coach staff accounts require a sport; receptionists do not', () => {
+  const { validateStaffAccount } = loadService('staff');
+  const ok = () => true;
+  const base = { email: 'a@b.vn', password: 'secret1', fullName: 'Minh', phone: '0901234567' };
+  assert.ok(validateStaffAccount({ ...base, role: 'COACH', subjectId: '' }, ok, ok).subjectId);
+  assert.equal(Object.keys(validateStaffAccount({ ...base, role: 'COACH', subjectId: '507f1f77bcf86cd799439012' }, ok, ok)).length, 0);
+  assert.equal(Object.keys(validateStaffAccount({ ...base, role: 'RECEPTIONIST' }, ok, ok)).length, 0);
+  assert.ok(validateStaffAccount({ ...base, role: 'RECEPTIONIST', password: '123' }, ok, ok).password);
+});
+test('coach feedback reaches the whole class or one confirmed student as notifications', async () => {
+  const posted = [];
+  const feedback = loadService('feedback', async (url, options) => {
+    posted.push(JSON.parse(options.body));
+    return { ok: true, status: 201, json: async () => ({ success: true, data: {} }) };
+  });
+  const rows = [
+    { class: { _id: 'c1' }, member: { _id: 'm1', userId: 'u1', fullName: 'An' } },
+    { class: { _id: 'c1' }, member: { _id: 'm2', userId: { _id: 'u2' }, fullName: 'Bình' } },
+    { class: { _id: 'c2' }, member: { _id: 'm3', userId: 'u3', fullName: 'Chi' } },
+    { class: { _id: 'c1' }, member: { _id: 'm1', userId: 'u1', fullName: 'An' } },
+  ];
+  assert.deepEqual(Array.from(feedback.feedbackRecipients(rows, 'class', 'c1'), item => item.userId), ['u1', 'u2']);
+  assert.deepEqual(Array.from(feedback.feedbackRecipients(rows, 'member', 'c1', 'm2'), item => item.userId), ['u2']);
+  assert.equal(feedback.feedbackRecipients(rows, 'member', 'c1', 'm3').length, 0);
+  const input = { target: 'class', classId: 'c1', className: 'Yoga sáng', content: ' Cả lớp tiến bộ tốt ', rating: 4 };
+  assert.equal(feedback.validateFeedback(input), '');
+  assert.ok(feedback.validateFeedback({ ...input, content: 'ok' }));
+  assert.ok(feedback.validateFeedback({ ...input, target: 'member', memberId: '' }));
+  assert.ok(feedback.validateFeedback({ ...input, rating: 6 }));
+  const result = await feedback.sendFeedback('token', feedback.feedbackRecipients(rows, 'class', 'c1'), input);
+  assert.equal(result.sent, 2);
+  assert.deepEqual(posted.map(item => item.userId), ['u1', 'u2']);
+  assert.equal(posted[0].title, 'Nhận xét từ HLV · Cả lớp · Yoga sáng');
+  assert.equal(posted[0].message, 'Cả lớp tiến bộ tốt\nĐánh giá: 4/5');
+  assert.equal(feedback.isFeedback({ title: posted[0].title }), true);
+  assert.equal(feedback.isFeedback({ title: 'Bài tập mới' }), false);
+});
+test('schedule date input accepts Vietnamese and ISO formats and rejects impossible days', () => {
+  const t = loadService('../utils/schedule-time');
+  assert.equal(t.parseDateInput('16/11/2026', '2026-11-11'), '2026-11-16');
+  assert.equal(t.parseDateInput('5-1-27', '2026-11-11'), '2027-01-05');
+  assert.equal(t.parseDateInput('16/11', '2026-11-11'), '2026-11-16');
+  assert.equal(t.parseDateInput('2026-11-16', '2026-11-11'), '2026-11-16');
+  assert.equal(t.parseDateInput('31/02/2026', '2026-11-11'), '');
+  assert.equal(t.parseDateInput('abc', '2026-11-11'), '');
+  assert.equal(t.formatDateLabel('2026-11-16'), 'Thứ Hai, 16/11/2026');
+  assert.deepEqual(Array.from(t.upcomingDays('2026-12-30', 3)), ['2026-12-30', '2026-12-31', '2027-01-01']);
+});
+test('schedule time input normalizes typing and computes session ends', () => {
+  const t = loadService('../utils/schedule-time');
+  for (const [input, expected] of [['1830', '18:30'], ['930', '09:30'], ['18', '18:00'], ['18h30', '18:30'], ['9:5', '09:05'], ['18.15', '18:15'], ['2400', ''], ['18:60', ''], ['x', '']]) assert.equal(t.normalizeTime(input), expected, input);
+  assert.equal(t.addMinutes('18:00', 90), '19:30');
+  assert.equal(t.addMinutes('23:30', 60), '23:59');
+  assert.equal(t.durationLabel('18:00', '19:30'), '1 giờ 30 phút');
+  assert.equal(t.durationLabel('18:00', '18:45'), '45 phút');
+  assert.equal(t.durationLabel('18:00', '17:00'), '');
+});
+test('weekly repeat lists the next sessions and cycles lessons in order', () => {
+  const t = loadService('../utils/schedule-time');
+  assert.deepEqual(Array.from(t.repeatDates('2026-11-16', [1, 3], 5)), ['2026-11-16', '2026-11-18', '2026-11-23', '2026-11-25', '2026-11-30']);
+  assert.deepEqual(Array.from(t.repeatDates('2026-11-17', [1], 2)), ['2026-11-23', '2026-11-30']);
+  assert.equal(t.repeatDates('2026-11-16', [], 3).length, 0);
+  const lessons = [{ _id: 'c', order: 3 }, { _id: 'a', order: 1 }, { _id: 'b', order: 2 }];
+  assert.deepEqual(Array.from(t.cycleLessons(lessons, 'b', 5)), ['b', 'c', 'a', 'b', 'c']);
+  assert.deepEqual(Array.from(t.cycleLessons(lessons, 'missing', 2)), ['missing', 'missing']);
+});
+test('coach account email comes from the staff directory or activity log', async () => {
+  const responses = {
+    '/api/staff/accounts': [{ _id: 'staff-coach', email: 'staff@center.vn' }],
+    '/api/activity-logs': [{ userId: { _id: 'coach-user', email: 'hlv@center.vn', role: 'COACH' } }],
+  };
+  const { findUserEmail, emailFromRecords } = loadService('account-email', async url => ({ ok: true, status: 200, json: async () => ({ success: true, data: responses[new URL(url).pathname] }) }));
+  assert.equal(await findUserEmail('token', 'staff-coach'), 'staff@center.vn');
+  assert.equal(await findUserEmail('token', 'coach-user'), 'hlv@center.vn');
+  assert.equal(await findUserEmail('token', 'nobody'), '');
+  assert.equal(await findUserEmail('token', ''), '');
+  assert.equal(emailFromRecords([{ userId: 'coach-user' }], 'coach-user'), '');
+});
+test('coach account email lookup falls back when the staff directory is forbidden', async () => {
+  const { findUserEmail } = loadService('account-email', async url => new URL(url).pathname === '/api/staff/accounts'
+    ? { ok: false, status: 403, json: async () => ({ success: false, message: 'Access denied' }) }
+    : { ok: true, status: 200, json: async () => ({ success: true, data: [{ userId: { _id: 'u', email: 'a@b.vn' } }] }) });
+  assert.equal(await findUserEmail('token', 'u'), 'a@b.vn');
+});
+test('a pending payment of a cancelled registration is shown as no longer valid', () => {
+  const p = loadService('payments');
+  const pending = { status: 'PENDING', amount: 5000 };
+  assert.equal(p.isVoidedPayment(pending, { status: 'CANCELLED' }), true);
+  assert.equal(p.isVoidedPayment(pending, { status: 'PENDING_PAYMENT' }), false);
+  assert.equal(p.isVoidedPayment({ status: 'SUCCESS' }, { status: 'CANCELLED' }), false);
+  assert.equal(p.isVoidedPayment(pending, undefined), false);
+  assert.equal(p.paymentStatusLabel(pending, { status: 'CANCELLED' }), 'Không còn hiệu lực · đăng ký đã hủy');
+  assert.equal(p.paymentStatusLabel(pending, { status: 'PENDING_PAYMENT' }), 'Chờ thanh toán');
+  assert.equal(p.paymentStatusLabel({ status: 'SUCCESS' }), 'Thanh toán thành công');
+});
+test('staff reopen a cancelled registration back to pending payment with the stored class and member', async () => {
+  const calls = [];
+  let status = 'CANCELLED';
+  const reopen = loadService('registration-reopen', async (url, options = {}) => {
+    calls.push({ path: new URL(url).pathname, method: options.method || 'GET', body: options.body && JSON.parse(options.body) });
+    if (options.method === 'PUT') return { ok: true, status: 200, json: async () => ({ success: true, data: { _id: 'r1', status: 'PENDING_PAYMENT' } }) };
+    return { ok: true, status: 200, json: async () => ({ success: true, data: [{ _id: 'r1', status, classId: { _id: 'c1' }, memberId: { _id: 'm1' } }] }) };
+  });
+  assert.equal(reopen.canReopenRegistration('RECEPTIONIST'), true);
+  assert.equal(reopen.canReopenRegistration('CENTER_MANAGER'), true);
+  assert.equal(reopen.canReopenRegistration('MEMBER'), false);
+  assert.equal(reopen.canReopenRegistration('COACH'), false);
+  await reopen.reopenRegistration('token', 'r1');
+  const put = calls.find(call => call.method === 'PUT');
+  assert.equal(put.path, '/api/class-registrations/r1');
+  assert.equal(JSON.stringify(put.body), JSON.stringify({ classId: 'c1', memberId: 'm1', status: 'PENDING_PAYMENT' }));
+  status = 'CONFIRMED';
+  await assert.rejects(reopen.reopenRegistration('token', 'r1'), /không còn ở trạng thái đã hủy/);
+  await assert.rejects(reopen.reopenRegistration('token', 'missing'), /Không tìm thấy đăng ký/);
+});
+test('roll call saves only changed students: creates new marks and updates saved ones', () => {
+  const r = loadService('../utils/roll-call');
+  const students = [{ _id: 'a', fullName: 'An' }, { _id: 'b', fullName: 'Bình' }, { _id: 'c', fullName: 'Chi' }];
+  const records = [{ _id: 'rec-a', memberId: { _id: 'a' }, status: 'PRESENT' }, { _id: 'rec-b', memberId: 'b', status: 'PRESENT' }];
+  const marks = { a: 'PRESENT', b: 'ABSENT', c: 'PRESENT' };
+  const changes = r.rollCallChanges(students, records, marks);
+  assert.equal(JSON.stringify(changes), JSON.stringify([
+    { memberId: 'b', name: 'Bình', status: 'ABSENT', recordId: 'rec-b' },
+    { memberId: 'c', name: 'Chi', status: 'PRESENT' },
+  ]));
+  assert.equal(JSON.stringify(r.rollCallCounts(students, records, {})), JSON.stringify({ present: 2, absent: 0, unmarked: 1 }));
+  assert.equal(JSON.stringify(r.rollCallCounts(students, records, marks)), JSON.stringify({ present: 2, absent: 1, unmarked: 0 }));
+  assert.equal(r.rollCallChanges(students, records, {}).length, 0);
+  assert.equal(r.currentStatus('c', r.savedAttendance(records), {}), '');
+});
+
+test('exercise suggestions follow sport, goal, level and history', () => {
+  const { suggestExercises } = loadService('../utils/exercise-suggest');
+  const first = suggestExercises({ subject: 'Bóng bàn', goal: 'Giảm cân, tăng sức bền', level: 'BEGINNER', history: { results: 0 } });
+  assert.ok(first.text.includes('Kỹ thuật Bóng bàn'));
+  assert.ok(first.text.includes('2 hiệp × 8–10 lần'));
+  assert.ok(first.text.includes('đánh giá đầu vào'));
+  assert.equal(JSON.stringify(first.focus), JSON.stringify(['Đốt mỡ, giảm cân', 'Tăng sức bền']));
+  const later = suggestExercises({ subject: 'Yoga', goal: '', level: 'ADVANCED', history: { results: 4, lastResult: 'Giữ plank 60s', lastComment: 'Cần thở đều', sessions: 10, absences: 4 } });
+  assert.ok(later.text.includes('4 hiệp × 12–15 lần'));
+  assert.ok(later.text.includes('tăng khoảng 10%'));
+  assert.ok(later.text.includes('Cần thở đều'));
+  assert.ok(later.text.includes('vắng 4/10'));
+  assert.equal(JSON.stringify(later.focus), JSON.stringify(['Thể lực chung']));
+  assert.ok(suggestExercises({ subject: 'Boxing', goal: 'tăng cơ', level: 'INTERMEDIATE', forClass: true }).text.includes('cả lớp'));
+});
+test('a workout result can be tagged with the session it belongs to', () => {
+  const { withSessionNote } = loadService('../utils/exercise-suggest');
+  assert.equal(withSessionNote('Chạy 3 km', 'Buổi 16/11/2026 18:00–19:00 · Bài 1'), '[Buổi 16/11/2026 18:00–19:00 · Bài 1] Chạy 3 km');
+  assert.equal(withSessionNote('Chạy 3 km', ''), 'Chạy 3 km');
 });

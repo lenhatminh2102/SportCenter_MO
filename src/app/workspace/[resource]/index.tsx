@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useMemberShell } from '@/context/member-shell';
 import { useStaffShell } from '@/context/staff-shell';
+import { roleHome } from '@/utils/staff-navigation';
 import { useAuth } from '@/context/auth';
 import { titleFor, detailFor } from '@/utils/resource-display';
 import { entityId, referenceId, resourceApis, attendancesApi, schedulesApi, coachesApi, classesApi, type ResourceKey } from '@/services/operations';
@@ -47,20 +48,20 @@ function ResourceList({ resource, courseId, classId, date }: { resource: Resourc
   const canEnroll = ['MEMBER', 'RECEPTIONIST', 'CENTER_MANAGER'].includes(user.role);
   const canCreate = resource === 'class-registrations' ? canEnroll : canUseResource(resource, user.role, 'create', undefined, actorId);
   const create = () => resource === 'class-registrations' ? router.push('/enroll') : router.push({ pathname: '/workspace/[resource]/edit', params: { resource } });
-  return <SafeAreaView edges={inStaffShell ? ['bottom', 'left', 'right'] : memberShell ? ['top', 'left', 'right'] : ['top', 'bottom', 'left', 'right']} style={ui.page}><FlatList contentContainerStyle={ui.content} data={items} keyExtractor={entityId} refreshing={query.loading} onRefresh={reload} keyboardShouldPersistTaps="handled"
+  return <SafeAreaView edges={inStaffShell ? ['left', 'right'] : memberShell ? ['top', 'left', 'right'] : ['top', 'bottom', 'left', 'right']} style={ui.page}><FlatList contentContainerStyle={ui.content} data={items} keyExtractor={entityId} refreshing={query.loading} onRefresh={reload} keyboardShouldPersistTaps="handled"
     ListHeaderComponent={<View style={{ gap: 16, marginBottom: 20 }}>
-      <Link href={user.role === 'MEMBER' ? '/member' : '/operations'} style={ui.link}>← Không gian của tôi</Link>
+      <Link href={roleHome(user.role)} style={ui.link}>← Trang chủ</Link>
       <Text style={ui.title}>{date && resource === 'schedules' ? `Lịch ngày ${date}` : classId && resource === 'schedules' ? 'Lịch của lớp' : mine ? 'Lịch tập của tôi' : user.role === 'COACH' && resource === 'schedules' ? 'Lịch dạy của tôi' : user.role === 'COACH' && resource === 'classes' ? 'Lớp của tôi' : resource === 'class-registrations' && user.role === 'MEMBER' ? 'Đăng ký của tôi' : definition.title}</Text>
       <Text style={ui.eyebrow}>{query.data ? `${items.length} KẾT QUẢ` : 'DỮ LIỆU TRUNG TÂM'}</Text>
       {resource === 'schedules' && !classId && user.role === 'MEMBER' && <Button secondary title={mine ? 'Khám phá lịch các lớp' : 'Về lịch tập của tôi'} onPress={() => setAllSchedules(value => !value)} />}
-      {resource === 'schedules' && user.role === 'CENTER_MANAGER' && <Button secondary title="Import lịch từ Excel" onPress={() => router.push('/schedule-import')} />}{canCreate && <Button title={resource === 'class-registrations' ? '+ Bắt đầu đăng ký lớp' : `+ Thêm ${definition.singular}`} onPress={create} />}
+      {resource === 'schedules' && user.role === 'CENTER_MANAGER' && <Button secondary title="Import lịch từ Excel" onPress={() => router.push('/schedule-import')} />}{resource === 'coaches' && user.role === 'CENTER_MANAGER' && <Button title="+ Tạo tài khoản HLV mới" onPress={() => router.push({ pathname: '/staff-accounts', params: { create: '1' } })} />}{canCreate &&<Button title={resource === 'class-registrations' ? '+ Bắt đầu đăng ký lớp' : `+ Thêm ${definition.singular}`} onPress={create} />}
       <Field label="Tìm kiếm" value={search} onChangeText={setSearch} placeholder={`Tìm ${definition.singular}`} />
       <QueryStatus loading={needsActor && actor.loading} error={needsActor ? actor.error : null} retry={actor.reload} />
       {needsActor && actor.error && user.role === 'MEMBER' && <Link href="/profile" style={ui.link}>Tạo hồ sơ hội viên →</Link>}
       <QueryStatus loading={query.loading} error={query.error} retry={reload} />
       {mine && query.missing && <Link href="/profile" style={ui.link}>Tạo hồ sơ hội viên để xem lịch →</Link>}
     </View>}
-    ListEmptyComponent={!query.loading && !query.error && !actor.loading && !actor.error ? <View style={ui.card}><Text style={ui.body}>{search ? 'Không có kết quả phù hợp.' : mine ? 'Bạn chưa có lịch từ lớp đã xác nhận. Hoàn tất đăng ký và thanh toán trước.' : 'Chưa có dữ liệu.'}</Text>{user.role === 'MEMBER' && ['schedules', 'class-registrations'].includes(resource) && <Button title="Khám phá và đăng ký lớp →" onPress={() => router.push('/enroll')} />}</View> : null}
+    ListEmptyComponent={!query.loading && !query.error && !actor.loading && !actor.error ? <View style={ui.card}><Text style={ui.body}>{search ? 'Không có kết quả phù hợp.' : mine ? 'Bạn chưa có lịch từ lớp đã xác nhận. Hoàn tất đăng ký và thanh toán trước.' : 'Chưa có dữ liệu.'}</Text>{user.role === 'MEMBER' && ['schedules', 'class-registrations'].includes(resource) && <Button title="Khám phá và đăng ký lớp →" onPress={() => router.push('/enroll')} />}</View> : undefined}
     ItemSeparatorComponent={() => <View style={{ height: 14 }} />}
     renderItem={({ item }) => <View style={ui.card}>
       <Text style={ui.heading}>{titleFor(resource, item)}</Text><Text style={ui.body}>{detailFor(resource, item)}</Text>

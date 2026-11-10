@@ -1,4 +1,6 @@
-# Google Sign-In + email OTP
+# Historical setup for Google Sign-In and email OTP
+
+The mobile app now uses email and password. This guide describes the former mobile integration and is retained for reference.
 
 Set EXPO_PUBLIC_API_URL in .env to the backend reachable from your device. Android emulator uses http://10.0.2.2:5000; a phone needs the computer LAN IP.
 

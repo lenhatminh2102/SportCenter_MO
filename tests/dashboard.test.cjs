@@ -13,16 +13,23 @@ function dashboard(dependencies = {}) {
   return load('src/services/dashboard.ts', { '@/utils/coach-roster': load('src/utils/coach-roster.ts', { '@/services/operations': { entityId: ref, referenceId: ref } }), './operations': { entityId: ref, referenceId: ref, ...dependencies }, './members': { membersApi: { list: async () => [] } } });
 }
 const now = new Date('2026-10-14T00:00:00Z');
-test('staff roles have separate landing pages and menu entries', () => {
+test('staff roles have a small set of bottom tabs for daily tasks', () => {
   const nav = load('src/utils/staff-navigation.ts');
   assert.equal(nav.roleHome('COACH'), '/coach');
   assert.equal(nav.roleHome('CENTER_MANAGER'), '/manager');
   assert.equal(nav.roleHome('MEMBER'), '/member');
   assert.equal(nav.isStaffRole('RECEPTIONIST'), false);
-  assert.equal(nav.staffMenu('COACH').some(item => item.path === '/members'), false);
-  assert.equal(nav.staffMenu('CENTER_MANAGER').some(item => item.path === '/members'), true);
-  assert.equal(nav.activeMenuItem('/workspace/classes/edit', { path: '/workspace/classes' }), true);
-  assert.equal(nav.activeMenuItem('/workspace/classes-other', { path: '/workspace/classes' }), false);
+  assert.equal(nav.staffTabs('COACH').map(item => item.path).join(','), '/coach,/workspace/schedules,/coach-students,/account');
+  assert.equal(nav.staffTabs('CENTER_MANAGER').map(item => item.path).join(','), '/manager,/workspace/classes,/workspace/schedules,/members,/account');
+  assert.equal(nav.isStaffPage('/staff-accounts'), true);
+  for (const path of ['/manager/reports', '/manager/memberships', '/manager/role-access']) {
+    assert.equal(nav.isStaffPage(path), true);
+    assert.equal(nav.activeStaffTab(path, 'CENTER_MANAGER'), undefined);
+  }
+  assert.equal(nav.activeStaffTab('/workspace/classes/edit', 'CENTER_MANAGER'), '/workspace/classes');
+  assert.equal(nav.activeStaffTab('/workspace/classes-other', 'CENTER_MANAGER'), undefined);
+  assert.equal(nav.activeStaffTab('/workspace/attendances/edit', 'COACH'), '/workspace/schedules');
+  assert.equal(nav.activeStaffTab('/enroll', 'RECEPTIONIST'), '/workspace/class-registrations');
   assert.equal(nav.isStaffPage('/login'), false);
 });
 test('coach dashboard scopes classes, students, schedules and results', () => {
@@ -72,15 +79,12 @@ test('member navigation keeps personal home separate from staff and auth screens
   assert.equal(nav.isMemberPage('/login'), false); assert.equal(nav.isMemberPage('/manager'), false);
   assert.equal(nav.activeMemberTab('/class-detail'), '/workspace/classes');
   assert.equal(nav.activeMemberTab('/workspace/classes/edit'), '/workspace/classes');
-  assert.equal(nav.activeMemberTab('/notifications'), '');
+  assert.equal(nav.isMemberPage('/notifications'), false);
 });
 
-test('reception workspace has its own landing and operational menu', () => {
+test('reception has a dedicated registration tab', () => {
   const nav = load('src/utils/staff-navigation.ts');
   assert.equal(nav.roleHome('RECEPTIONIST'), '/reception');
   assert.equal(nav.isWorkspaceRole('RECEPTIONIST'), true);
-  const menu = nav.staffMenu('RECEPTIONIST');
-  assert.equal(menu.some(item => item.path === '/payments'), true);
-  assert.equal(menu.some(item => item.path === '/workspace/courses'), false);
-  assert.equal(menu.some(item => item.path === '/workspace/attendances'), true);
+  assert.equal(nav.staffTabs('RECEPTIONIST').map(item => item.path).join(','), '/reception,/members,/workspace/class-registrations,/account');
 });

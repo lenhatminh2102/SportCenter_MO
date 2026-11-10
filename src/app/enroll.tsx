@@ -40,7 +40,7 @@ function EnrollmentFlow({ initialClassId }: { initialClassId?: string }) {
   const memberId = profile ? entityId(profile) : '';
   const existing = data && memberId ? enrollmentFor(data.registrations, classId, memberId) : undefined;
   const conflicts = data && memberId ? enrollmentConflicts(data.schedules, data.registrations, classId, memberId) : [];
-  const price = coursePrice(course, selected?.classType);
+  const price = coursePrice(course);
   const canPay = course?.status === 'ACTIVE' && price !== undefined && price > 0;
   const ready = !!selected && canPay && sessions.length > 0;
   const chooseClass = (value: string) => { setClassId(value); setAgreed(false); setConfirmedSchedule(''); setError(''); setStep(1); };
@@ -64,7 +64,7 @@ function EnrollmentFlow({ initialClassId }: { initialClassId?: string }) {
     {data && step === 0 && <><Text style={ui.body}>Chọn lớp phù hợp rồi kiểm tra toàn bộ lịch học trước khi đăng ký.</Text>{data.classes.map(item => <View key={entityId(item)} style={ui.card}><Text style={ui.heading}>{String(item.name || '')}</Text><Text style={ui.body}>{referenceLabel(item.subjectId)} · Coach {referenceLabel(item.coachId)}</Text><Button title="Chọn lớp và xem lịch →" onPress={() => chooseClass(entityId(item))} /></View>)}{!data.classes.length && <Text style={ui.body}>Trung tâm chưa có lớp học.</Text>}</>}
     {data && step > 0 && !selected && <><Text style={ui.error}>Lớp không còn tồn tại.</Text><Button secondary title="Chọn lớp khác" onPress={() => setStep(0)} /></>}
     {data && selected && step > 0 && <>
-      <View style={ui.card}><Text style={ui.heading}>{String(selected.name)}</Text><Text style={ui.body}>Coach: {referenceLabel(selected.coachId)}</Text><Text style={ui.body}>Khóa học: {referenceLabel(selected.courseId)} · {selected.classType === 'PERSONAL' ? 'Cá nhân 1–1' : 'Lớp nhóm'}</Text><Text style={ui.heading}>{currency(price)}</Text></View>
+      <View style={ui.card}><Text style={ui.heading}>{String(selected.name)}</Text><Text style={ui.body}>Coach: {referenceLabel(selected.coachId)}</Text><Text style={ui.body}>Khóa học: {referenceLabel(selected.courseId)}</Text><Text style={ui.heading}>{currency(price)}</Text></View>
       {step === 1 && <>
         <Text style={ui.body}>Bạn đăng ký toàn bộ lớp theo lịch dưới đây. Chọn lớp khác nếu thời gian chưa phù hợp; hiện chưa hỗ trợ đặt một buổi riêng.</Text>
         {sessions.map(item => <View key={entityId(item)} style={ui.card}><Text style={ui.heading}>{String(item.date).slice(0, 10)} · {String(item.startTime)}–{String(item.endTime)}</Text><Text style={ui.body}>{referenceLabel(item.lessonId)} · Phòng {referenceLabel(item.roomId)}</Text></View>)}
