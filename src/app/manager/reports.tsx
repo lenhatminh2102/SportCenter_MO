@@ -66,15 +66,16 @@ function ReportResults({ report }: { report: ManagerReport }) {
       <Text style={ui.body}>Đăng ký đã xác nhận: {summary.registrations.CONFIRMED}</Text>
       <Text style={ui.body}>Đăng ký đã hủy: {summary.registrations.CANCELLED}</Text>
       <Text style={ui.heading}>Doanh thu: {currency(summary.revenue)}</Text>
+      <Text style={ui.body}>Học phí lớp {currency(summary.classRevenue)} · Gói tập {currency(summary.membershipRevenue)}</Text>
       <Text style={ui.body}>{summary.successfulPayments} giao dịch thành công theo ngày thực thu.</Text>
       {!!report.undatedSuccessfulPayments && <Text style={ui.body}>Có {report.undatedSuccessfulPayments} giao dịch thành công thiếu ngày thu trên hệ thống. Các giao dịch này không được tính vào doanh thu theo ngày.</Text>}
     </View>
     <Text style={ui.heading}>Chi tiết theo ngày</Text>
-    <Text style={ui.body}>Đăng ký được nhóm theo ngày đăng ký và trạng thái hiện tại.</Text>
+    <Text style={ui.body}>Đăng ký được tính theo ngày đăng ký; doanh thu theo ngày thực thu.</Text>
     {report.daily.slice(page * pageSize, (page + 1) * pageSize).map(day => <View key={day.date} style={ui.card}>
       <Text style={ui.heading}>{formatDateLabel(day.date) || day.date}</Text>
       <Text style={ui.body}>Hội viên mới: {day.newMembers} · Doanh thu: {currency(day.revenue)}</Text>
-      <Text style={ui.body}>Đăng ký: {day.registrations.PENDING_PAYMENT} chờ · {day.registrations.CONFIRMED} xác nhận · {day.registrations.CANCELLED} hủy</Text>
+      <Text style={ui.body}>Đăng ký mới: {day.registrations} · Giao dịch thành công: {day.successfulPayments}</Text>
     </View>)}
     {pages > 1 && <View style={{ gap: 8 }}>
       <Text style={ui.body}>Trang {page + 1}/{pages}</Text>

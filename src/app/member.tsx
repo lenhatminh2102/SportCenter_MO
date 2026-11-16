@@ -4,7 +4,7 @@ import { Redirect, router, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/context/auth';
 import { useApiQuery } from '@/hooks/use-api-query';
 import { loadMemberHome, upcomingMemberSessions } from '@/services/member-home';
-import { referenceLabel } from '@/services/operations';
+import { entityId, referenceLabel } from '@/services/operations';
 import { isVoidedPayment, registrationFor } from '@/services/payments';
 import { roleHome } from '@/utils/staff-navigation';
 import { Screen, Button } from '@/components/sport/ui';
@@ -33,7 +33,7 @@ export default function MemberHome() {
       <Text style={ui.eyebrow}>ACTIVEHUB</Text>
       <Text style={ui.title}>Chào {data?.profile?.fullName || user.name}</Text>
     </View>
-    <Button title="Tìm lớp học" onPress={() => router.navigate({ pathname: '/workspace/[resource]', params: { resource: 'classes' } })} />
+    <Button title="Tìm lớp học" onPress={() => router.navigate('/explore')} />
     <QueryStatus loading={query.loading} error={query.error} retry={reload} />
     {!!data?.errors.length && <View style={{ gap: 8 }}>
       <Text style={ui.error} accessibilityRole="alert">Một phần dữ liệu chưa tải được.</Text>
@@ -50,6 +50,7 @@ export default function MemberHome() {
         <Text style={ui.heading}>{referenceLabel(next.classId)}</Text>
         <Text style={ui.body}>{String(next.date).slice(0, 10)} · {String(next.startTime)} – {String(next.endTime)}</Text>
         <Text style={ui.body}>Phòng: {referenceLabel(next.roomId)}</Text>
+        <Button title="Chi tiết buổi & video bài học" onPress={() => router.push({ pathname: '/session', params: { id: entityId(next) } })} />
       </> : <Text style={ui.body}>{data.schedules ? 'Bạn chưa có buổi tập sắp tới.' : 'Lịch tập sẽ hiển thị sau khi đăng ký lớp được xác nhận.'}</Text>}
       <Button secondary title="Xem lịch của tôi" onPress={() => router.navigate({ pathname: '/workspace/[resource]', params: { resource: 'schedules' } })} />
     </View>}

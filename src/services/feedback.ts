@@ -31,12 +31,18 @@ export function validateFeedback(input: FeedbackInput) {
   if (input.rating !== undefined && (!Number.isInteger(input.rating) || input.rating < 1 || input.rating > 5)) return 'Điểm đánh giá từ 1 đến 5.';
   return '';
 }
-/** Sends one notification per recipient; reports how many succeeded. */
+/**
+ * One call to the coach endpoint: the whole class, or the one student; reports how many got it.
+ * (POST /api/notifications is for manager/receptionist only and answers 403 to a coach.)
+ */
 export async function sendFeedback(token: string, recipients: FeedbackRecipient[], input: FeedbackInput) {
   const title = feedbackTitle(input); const message = feedbackMessage(input);
-  const results = await Promise.allSettled(recipients.map(item => notificationsApi.create(token, { userId: item.userId, title, message })));
-  const failed = recipients.filter((_, index) => results[index].status === 'rejected');
-  const firstError = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')?.reason;
-  return { sent: recipients.length - failed.length, failed, error: firstError instanceof Error ? firstError.message : '' };
+  const target = input.target === 'class' ? { classId: input.classId } : { memberId: recipients[0]?.memberId || input.memberId };
+  try {
+    const result = await notificationsApi.coach(token, { ...target, title, message });
+    return { sent: Number(result?.recipients) || recipients.length, failed: [] as FeedbackRecipient[], error: '' };
+  } catch (error) {
+    return { sent: 0, failed: recipients, error: error instanceof Error ? error.message : '' };
+  }
 }
 export const isFeedback = (item: Entity) => String(item.title || '').startsWith(FEEDBACK_TITLE);

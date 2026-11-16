@@ -13,6 +13,10 @@ import { loadTeachingScope } from '@/services/coach-teaching';
 import { scopeTeachingResources } from '@/utils/coach-teaching';
 import { assertCoachAssignment } from '@/utils/role-workflows';
 import { CoachAttendanceForm } from './coach-attendance-form';
+import { Redirect } from 'expo-router';
+import { ClassCover } from './class-cover';
+import { VideoEmbed } from './video-embed';
+import { safeImageUrl } from '@/utils/image';
 import { DateField, TimeField } from './date-time-fields';
 import { ScheduleRepeat, defaultRepeat, plannedDates, repeatCount, type RepeatSettings } from './schedule-repeat';
 import { addMinutes, cycleLessons, formatDateLabel } from '@/utils/schedule-time';
@@ -23,6 +27,8 @@ type ResourceFormProps = {
   onSave: (input: ResourceInput) => Promise<unknown>; onSaved: () => void;
 };
 export function ResourceForm(props: ResourceFormProps) {
+  // New coach roll calls use /attendance (day) and /attendance/session; this form only edits a saved record.
+  if (props.resource === 'attendances' && props.role === 'COACH' && !props.initial) return <Redirect href={props.defaults?.scheduleId ? { pathname: '/attendance/session', params: { scheduleId: props.defaults.scheduleId } } : '/attendance'} />;
   if (props.resource === 'attendances' && props.role === 'COACH') return <CoachAttendanceForm token={props.token} initial={props.initial} defaults={props.defaults} onSaved={props.onSaved} />;
   return <GenericResourceForm {...props} />;
 }
@@ -99,6 +105,11 @@ function GenericResourceForm({ resource, initial, token, userId, role, actorId, 
     if (field.options) return <View key={field.key} style={{ gap: 8 }}><Text style={ui.heading}>{field.label}</Text><View style={{ gap: 8 }}>{field.options.map(option => <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: values[field.key] === option.value, disabled: busy }} disabled={busy} onPress={() => change(field.key, option.value)} style={{ padding: 13, minHeight: 46, borderRadius: 10, backgroundColor: values[field.key] === option.value ? colors.pale : colors.background }}><Text style={ui.body}>{values[field.key] === option.value ? '●' : '○'} {option.label}</Text></Pressable>)}</View>{!!fieldError && <Text style={ui.error}>{fieldError}</Text>}</View>;
     if (field.type === 'date') return <DateField key={field.key} label={field.label} value={values[field.key]} onChange={value => change(field.key, value)} error={fieldError} disabled={busy || !!report} />;
     if (field.type === 'time') return <TimeField key={field.key} label={field.label} value={values[field.key]} onChange={value => change(field.key, value)} error={fieldError} disabled={busy || !!report} from={field.key === 'endTime' ? values.startTime : undefined} />;
+    if (field.type === 'url') return <View key={field.key} style={{ gap: 8 }}>
+      <Field label={field.label} value={values[field.key]} onChangeText={value => change(field.key, value)} editable={!busy} error={fieldError} autoCapitalize="none" keyboardType="url" placeholder="https://…" />
+      {field.key === 'imageUrl' && !!safeImageUrl(values.imageUrl) && <ClassCover imageUrl={values.imageUrl} subject="" style={{ height: 150, borderRadius: 12 }} />}
+      {field.key === 'videoUrl' && !!values.videoUrl && !fieldError && <VideoEmbed url={values.videoUrl} />}
+    </View>;
     return <Field key={field.key} label={field.label} value={values[field.key]} onChangeText={value => change(field.key, value)} editable={!busy} error={fieldError} multiline={field.type === 'multiline'} autoCapitalize={field.type === 'id' ? 'none' : 'sentences'} keyboardType={field.type === 'money' ? 'decimal-pad' : field.type === 'number' ? 'number-pad' : field.type === 'phone' ? 'phone-pad' : 'default'} />;
   })}
     {resource === 'workout-plans' && role === 'COACH' && <PlanSuggestion token={token} values={values} disabled={busy} onApply={patch => setValues(current => ({ ...current, ...patch }))} />}

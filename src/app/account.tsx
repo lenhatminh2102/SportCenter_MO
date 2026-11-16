@@ -1,6 +1,8 @@
 import { Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useApiQuery } from '@/hooks/use-api-query';
+import { notificationsApi, ownNotifications } from '@/services/notifications';
 import { Button, Screen } from '@/components/sport/ui';
 import { AccessScreen } from '@/components/sport/access';
 import { ui } from '@/components/sport/styles';
@@ -11,8 +13,11 @@ import { canResolveSupport } from '@/services/support';
 const roles: Record<string, string> = { MEMBER: 'Hội viên', CENTER_MANAGER: 'Quản lý trung tâm', COACH: 'Huấn luyện viên', RECEPTIONIST: 'Lễ tân' };
 
 export default function Account() {
-  const { user, refreshUser, logout } = useAuth();
+  const { user, token, refreshUser, logout } = useAuth();
   const [busy, setBusy] = useState(false);
+  const loadNotices = useCallback(async () => ownNotifications(await notificationsApi.my(token!), user!.id), [token, user]);
+  const notices = useApiQuery(loadNotices, !!token && !!user);
+  const unread = notices.data?.filter(item => !item.isRead).length || 0;
   const [message, setMessage] = useState('');
   if (!user) return <AccessScreen />;
 
@@ -42,6 +47,7 @@ export default function Account() {
       <Button secondary title="Hồ sơ tập luyện" onPress={() => router.push('/profile')} />
       <Button secondary title="Đăng ký của tôi" onPress={() => router.push({ pathname: '/workspace/[resource]', params: { resource: 'class-registrations' } })} />
     </>}
+    <Button secondary title={unread ? `Thông báo (${unread} chưa đọc)` : 'Thông báo'} onPress={() => router.push('/notifications')} />
     {canManagePayments(user.role) && <Button secondary title="Thanh toán" onPress={() => router.push('/payments')} />}
     {(user.role === 'MEMBER' || canResolveSupport(user.role)) && <Button secondary title="Hỗ trợ" onPress={() => router.push('/support')} />}
     <Button secondary title="Đăng xuất" onPress={() => { logout(); router.replace('/login'); }} />

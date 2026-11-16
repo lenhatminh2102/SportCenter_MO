@@ -18,7 +18,7 @@ function loadService(name, fetch = async () => ({ ok: true, status: 200, json: a
 const cases = [
   ['staff', 'staffApi', 'list', [], '/staff/accounts', 'GET', undefined],
   ['staff', 'staffApi', 'update', ['a/b', { role: 'COACH', subjectId: 'sport', status: 'INACTIVE' }], '/staff/accounts/a%2Fb', 'PATCH', { role: 'COACH', subjectId: 'sport', status: 'INACTIVE' }],
-  ['manager', 'managerApi', 'report', ['2026-11-01', '2026-11-30'], '/manager/reports?from=2026-11-01&to=2026-11-30', 'GET', undefined],
+  ['manager', 'managerApi', 'report', ['2026-11-01', '2026-11-30'], '/reports/overview?from=2026-11-01T00%3A00%3A00%2B07%3A00&to=2026-11-30T23%3A59%3A59.999%2B07%3A00&groupBy=day', 'GET', undefined],
   ['manager', 'managerApi', 'listPlans', [], '/manager/membership-plans', 'GET', undefined],
   ['manager', 'managerApi', 'createPlan', [{ name: 'Tháng', price: 400000, durationDays: 30, status: 'ACTIVE' }], '/manager/membership-plans', 'POST', { name: 'Tháng', price: 400000, durationDays: 30, status: 'ACTIVE' }],
   ['manager', 'managerApi', 'updatePlan', ['a/b', { status: 'INACTIVE' }], '/manager/membership-plans/a%2Fb', 'PATCH', { status: 'INACTIVE' }],
@@ -37,6 +37,8 @@ const cases = [
   ['support', 'supportApi', 'list', [], '/support-requests', 'GET', undefined],
   ['support', 'supportApi', 'create', ['m', ' Help '], '/support-requests', 'POST', { memberId: 'm', message: 'Help' }],
   ['support', 'supportApi', 'update', ['a/b', 'RESOLVED'], '/support-requests/a%2Fb/status', 'PUT', { status: 'RESOLVED' }],
+  ['support', 'supportApi', 'reply', ['a/b', ' Đã đổi lịch ', true], '/support-requests/a%2Fb/status', 'PUT', { response: 'Đã đổi lịch', status: 'RESOLVED' }],
+  ['support', 'supportApi', 'reply', ['a', 'Đang kiểm tra', false], '/support-requests/a/status', 'PUT', { response: 'Đang kiểm tra' }],
   ['payments', 'paymentsApi', 'status', ['a/b'], '/payments/a%2Fb/status', 'GET', undefined],
   ['payments', 'paymentsApi', 'record', ['a/b'], '/payments/a%2Fb/record-payment', 'POST', {}],
   ['payments', 'paymentsApi', 'list', [], '/payments', 'GET', undefined],
@@ -104,6 +106,11 @@ test('notification and support ownership exclude foreign or missing references',
   assert.equal(s.ownSupport([{ memberId: 'm' }, { memberId: { id: 'other' } }, {}], 'm').length, 1);
   assert.equal(n.ownNotifications([{}], '').length, 0); assert.equal(s.ownSupport([{}], '').length, 0);
   assert.equal(s.canResolveSupport('COACH'), false); assert.equal(s.canResolveSupport('RECEPTIONIST'), true);
+  assert.equal(s.supportSource({ createdBy: { role: 'MEMBER' } }), 'Hội viên gửi qua app');
+  assert.equal(s.supportSource({ createdBy: { role: 'RECEPTIONIST' } }), 'Lễ tân ghi nhận tại quầy');
+  assert.equal(s.supportSource({ createdBy: null }), '');
+  assert.equal(s.supportResponder({ respondedBy: { role: 'CENTER_MANAGER' } }), 'Quản lý trung tâm');
+  assert.equal(s.supportResponder({}), 'Trung tâm');
 });
 test('payment ownership resolves populated and unpopulated registrations', () => {
   const p = loadService('payments');
@@ -269,11 +276,11 @@ test('coach staff accounts require a sport; receptionists do not', () => {
   assert.equal(Object.keys(validateStaffAccount({ ...base, role: 'RECEPTIONIST' }, ok, ok)).length, 0);
   assert.ok(validateStaffAccount({ ...base, role: 'RECEPTIONIST', password: '123' }, ok, ok).password);
 });
-test('coach feedback reaches the whole class or one confirmed student as notifications', async () => {
+test('coach feedback goes through the coach endpoint, to the whole class or one confirmed student', async () => {
   const posted = [];
   const feedback = loadService('feedback', async (url, options) => {
-    posted.push(JSON.parse(options.body));
-    return { ok: true, status: 201, json: async () => ({ success: true, data: {} }) };
+    posted.push({ url, ...JSON.parse(options.body) });
+    return { ok: true, status: 201, json: async () => ({ success: true, data: { recipients: 2 } }) };
   });
   const rows = [
     { class: { _id: 'c1' }, member: { _id: 'm1', userId: 'u1', fullName: 'An' } },
@@ -291,11 +298,17 @@ test('coach feedback reaches the whole class or one confirmed student as notific
   assert.ok(feedback.validateFeedback({ ...input, rating: 6 }));
   const result = await feedback.sendFeedback('token', feedback.feedbackRecipients(rows, 'class', 'c1'), input);
   assert.equal(result.sent, 2);
-  assert.deepEqual(posted.map(item => item.userId), ['u1', 'u2']);
+  assert.equal(posted.length, 1);
+  assert.ok(String(posted[0].url).endsWith('/api/notifications/coach'));
+  assert.equal(posted[0].classId, 'c1');
+  assert.equal(posted[0].memberId, undefined);
   assert.equal(posted[0].title, 'Nhận xét từ HLV · Cả lớp · Yoga sáng');
   assert.equal(posted[0].message, 'Cả lớp tiến bộ tốt\nĐánh giá: 4/5');
   assert.equal(feedback.isFeedback({ title: posted[0].title }), true);
   assert.equal(feedback.isFeedback({ title: 'Bài tập mới' }), false);
+  await feedback.sendFeedback('token', feedback.feedbackRecipients(rows, 'member', 'c1', 'm2'), { ...input, target: 'member', memberId: 'm2' });
+  assert.equal(posted[1].memberId, 'm2');
+  assert.equal(posted[1].classId, undefined);
 });
 test('schedule date input accepts Vietnamese and ISO formats and rejects impossible days', () => {
   const t = loadService('../utils/schedule-time');

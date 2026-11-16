@@ -3,8 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
-function harness(disabled = false) {
-  let cursor = 0; const slots = []; const calls = { prepare: 0, open: 0, refreshed: 0 };
+function harness(disabled = false, os = 'web') {
+  let cursor = 0; const slots = []; const calls = { prepare: 0, open: 0, refreshed: 0, returnTo: undefined, pushed: null };
   const jsx = (type, props) => ({ type, props });
   const dependencies = {
     react: {
@@ -12,12 +12,17 @@ function harness(disabled = false) {
       useState: value => { const index = cursor++; if (!(index in slots)) slots[index] = value; return [slots[index], next => { slots[index] = next; }]; },
     },
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
-    'react-native': { Text: 'Text', View: 'View' },
-    'expo-web-browser': { openBrowserAsync: async url => { assert.equal(url, 'https://pay.payos.vn/web/example'); calls.open++; } },
+    'react-native': { Text: 'Text', View: 'View', Platform: { OS: os } },
+    'expo-linking': { createURL: path => `sportcenter://${path}`, parse: url => ({ queryParams: Object.fromEntries(new URL(url).searchParams) }) },
+    'expo-router': { router: { push: target => { calls.pushed = target; } } },
+    'expo-web-browser': {
+      openBrowserAsync: async url => { assert.equal(url, 'https://pay.payos.vn/web/example'); calls.open++; },
+      openAuthSessionAsync: async (url, redirect) => { assert.equal(url, 'https://pay.payos.vn/web/example'); assert.equal(redirect, 'sportcenter://payment-result'); calls.open++; return { type: 'success', url: 'sportcenter://payment-result?id=paid-1' }; },
+    },
     '@/services/operations': { entityId: item => item.id },
     '@/services/payments': {
       validatePaymentUrl: value => value,
-      paymentsApi: { checkout: async () => { calls.prepare++; return { paymentUrl: 'https://pay.payos.vn/web/example' }; } },
+      paymentsApi: { checkout: async (token, id, returnTo) => { calls.prepare++; calls.returnTo = returnTo; return { paymentUrl: 'https://pay.payos.vn/web/example' }; } },
     },
     './ui': { Button: 'Button' }, './styles': { ui: {} },
   };
@@ -34,14 +39,23 @@ function harness(disabled = false) {
 const settle = () => new Promise(resolve => setImmediate(resolve));
 test('checkout is prepared first and browser opens only on a fresh user click', async () => {
   const h = harness();
-  h.button(h.render(), 'Chuẩn bị thanh toán trực tuyến').props.onPress();
+  h.button(h.render(), 'Thanh toán qua payOS').props.onPress();
   await settle(); assert.equal(h.calls.prepare, 1); assert.equal(h.calls.open, 0);
   h.button(h.render(), 'Mở trang thanh toán →').props.onPress();
   assert.equal(h.calls.open, 1); // synchronous user gesture, before any awaited API request
   await settle(); assert.equal(h.calls.refreshed, 1);
 });
 test('unsaved method or another pending action disables checkout requests', async () => {
-  const h = harness(true); const button = h.button(h.render(), 'Chuẩn bị thanh toán trực tuyến');
+  const h = harness(true); const button = h.button(h.render(), 'Thanh toán qua payOS');
   assert.equal(button.props.disabled, true); button.props.onPress(); await settle();
   assert.equal(h.calls.prepare, 0); assert.equal(h.calls.open, 0);
+});
+test('in the app, payOS returns into the payment-result screen', async () => {
+  const h = harness(false, 'ios');
+  h.button(h.render(), 'Thanh toán qua payOS').props.onPress();
+  await settle(); assert.equal(h.calls.returnTo, 'sportcenter://payment-result');
+  h.button(h.render(), 'Mở trang thanh toán →').props.onPress();
+  await settle(); assert.equal(h.calls.open, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.calls.pushed)), { pathname: '/payment-result', params: { id: 'paid-1' } });
+  assert.equal(h.calls.refreshed, 0);
 });

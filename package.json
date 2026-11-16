@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "dependencies": {
     "@expo/ui": "~58.0.27",
+    "@react-native-google-signin/google-signin": "^17.0.0",
     "expo": "~58.0.23",
     "expo-constants": "~58.0.15",
     "expo-device": "~58.0.5",
@@ -25,7 +26,9 @@
     "react-native-reanimated": "4.7.1",
     "react-native-safe-area-context": "~5.11.1",
     "react-native-screens": "~4.30.1",
+    "react-native-svg": "15.16.0",
     "react-native-web": "~0.21.0",
+    "react-native-webview": "14.0.1",
     "react-native-worklets": "0.13.0"
   },
   "devDependencies": {
@@ -42,7 +45,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test": "node --test tests/auth-api.test.cjs tests/operations-api.test.cjs tests/dashboard.test.cjs tests/services-api.test.cjs tests/payment-actions.test.cjs tests/query-lifecycle.test.cjs",
+    "test": "node --test tests/auth-api.test.cjs tests/operations-api.test.cjs tests/dashboard.test.cjs tests/services-api.test.cjs tests/payment-actions.test.cjs tests/query-lifecycle.test.cjs tests/subject-filter.test.cjs tests/mobile-sync.test.cjs",
     "typecheck": "tsc --noEmit"
   },
   "private": true

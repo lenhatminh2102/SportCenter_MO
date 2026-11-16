@@ -68,10 +68,12 @@ export function Dashboard({ role }: { role: StaffRole }) {
             <Text style={ui.link}>{date.slice(8, 10)}/{date.slice(5, 7)} · {String(session.startTime)} – {String(session.endTime)}</Text>
             <Text style={ui.heading}>{referenceLabel(session.classId)}</Text>
             <Text style={ui.body}>{referenceLabel(session.roomId)}</Text>
-            {!manager && <Button secondary title="Điểm danh" onPress={() => router.push({
-              pathname: '/workspace/[resource]/edit',
-              params: { resource: 'attendances', scheduleId: entityId(session), classId: referenceId(session.classId), date },
-            })} />}
+            {!manager && <Button secondary title="Điểm danh" onPress={() => (role === 'COACH'
+              ? router.push({ pathname: '/attendance/session', params: { scheduleId: entityId(session) } })
+              : router.push({
+                pathname: '/workspace/[resource]/edit',
+                params: { resource: 'attendances', scheduleId: entityId(session), classId: referenceId(session.classId), date },
+              }))} />}
           </View>;
         })}
       </View>}

@@ -21,7 +21,8 @@ export function staffTabs(role: WorkspaceRole): AppTab[] {
   const home = { label: 'Trang chủ', symbol: '⌂', href: roleHome(role), path: roleHome(role) };
   if (role === 'COACH') {
     const students: AppTab = { label: 'Học viên', symbol: '♧', href: '/coach-students', path: '/coach-students' };
-    return [home, { ...schedules, label: 'Lịch dạy' }, students, account];
+    const attendance: AppTab = { label: 'Điểm danh', symbol: '✓', href: '/attendance', path: '/attendance' };
+    return [home, attendance, { ...schedules, label: 'Lịch dạy' }, students, account];
   }
   if (role === 'RECEPTIONIST') return [home, members, resourceTab('class-registrations', 'Đăng ký', '＋'), account];
   return [home, resourceTab('classes', 'Lớp học', '▤'), schedules, members, account];
@@ -31,8 +32,10 @@ export function activeStaffTab(path: string, role: WorkspaceRole) {
   const aliases: Record<string, string> = {
     '/class-detail': '/workspace/classes',
     '/schedule-import': '/workspace/schedules',
+    '/catalog-import': '/workspace/classes',
     '/workspace/attendances': '/workspace/schedules',
     '/workspace/attendances/edit': '/workspace/schedules',
+    '/attendance/session': '/attendance',
     '/profile': '/account',
   };
   const registrationTab = role === 'RECEPTIONIST' ? '/workspace/class-registrations' : '/workspace/classes';
@@ -46,6 +49,7 @@ export function isStaffPage(path: string) {
     '/coach', '/coach-students', '/manager', '/reception', '/account', '/profile', '/members', '/workspace',
     '/class-detail', '/registration-detail', '/enroll', '/schedule-import', '/payments', '/payment-edit',
     '/payment-receipt', '/support', '/operations', '/staff-accounts',
-    '/homeworks', '/feedbacks', '/pricing',
+    '/homeworks', '/feedbacks', '/pricing', '/notifications', '/notification-compose',
+    '/attendance', '/session', '/payment-result', '/catalog-import',
   ].some(root => path === root || path.startsWith(`${root}/`));
 }

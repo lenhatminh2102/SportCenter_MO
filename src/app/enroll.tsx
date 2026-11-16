@@ -15,9 +15,12 @@ import { MemberForm } from '@/components/sport/member-form';
 import { RelationField } from '@/components/sport/relation-field';
 import { FlowSteps } from '@/components/sport/flow-steps';
 import { ui } from '@/components/sport/styles';
+import { SubjectFilter } from '@/components/sport/subject-filter';
+import { buildSubjectIndex, subjectCounts } from '@/utils/subject-filter';
 function EnrollmentFlow({ initialClassId }: { initialClassId?: string }) {
   const { user, token } = useAuth(); const member = user?.role === 'MEMBER';
   const [classId, setClassId] = useState(initialClassId || '');
+  const [sport, setSport] = useState('');
   const [step, setStep] = useState(initialClassId ? 1 : 0);
   const [agreed, setAgreed] = useState(false); const [confirmedSchedule, setConfirmedSchedule] = useState('');
   const [savedProfile, setSavedProfile] = useState<MemberProfile | null>(null); const [selectedMember, setSelectedMember] = useState<Entity | null>(null); const [editingProfile, setEditingProfile] = useState(false);
@@ -61,7 +64,7 @@ function EnrollmentFlow({ initialClassId }: { initialClassId?: string }) {
     <Text style={ui.eyebrow}>{member ? 'ĐĂNG KÝ LỚP CỦA BẠN' : 'ĐĂNG KÝ LỚP CHO HỘI VIÊN'}</Text>
     <Text style={ui.title}>{enrollmentSteps[step]}</Text><FlowSteps labels={enrollmentSteps} current={step} />
     <QueryStatus loading={query.loading} error={query.error} retry={query.reload} />
-    {data && step === 0 && <><Text style={ui.body}>Chọn lớp phù hợp rồi kiểm tra toàn bộ lịch học trước khi đăng ký.</Text>{data.classes.map(item => <View key={entityId(item)} style={ui.card}><Text style={ui.heading}>{String(item.name || '')}</Text><Text style={ui.body}>{referenceLabel(item.subjectId)} · Coach {referenceLabel(item.coachId)}</Text><Button title="Chọn lớp và xem lịch →" onPress={() => chooseClass(entityId(item))} /></View>)}{!data.classes.length && <Text style={ui.body}>Trung tâm chưa có lớp học.</Text>}</>}
+    {data && step === 0 && <><Text style={ui.body}>Chọn lớp phù hợp rồi kiểm tra toàn bộ lịch học trước khi đăng ký.</Text><SubjectFilter options={subjectCounts('classes', data.classes, buildSubjectIndex({ classes: data.classes }))} value={sport} onChange={setSport} total={data.classes.length} />{data.classes.filter(item => !sport || (referenceId(item.subjectId) || '-') === sport).map(item => <View key={entityId(item)} style={ui.card}><Text style={ui.heading}>{String(item.name || '')}</Text><Text style={ui.body}>{referenceLabel(item.subjectId)} · Coach {referenceLabel(item.coachId)}</Text><Button title="Chọn lớp và xem lịch →" onPress={() => chooseClass(entityId(item))} /></View>)}{!data.classes.length && <Text style={ui.body}>Trung tâm chưa có lớp học.</Text>}</>}
     {data && step > 0 && !selected && <><Text style={ui.error}>Lớp không còn tồn tại.</Text><Button secondary title="Chọn lớp khác" onPress={() => setStep(0)} /></>}
     {data && selected && step > 0 && <>
       <View style={ui.card}><Text style={ui.heading}>{String(selected.name)}</Text><Text style={ui.body}>Coach: {referenceLabel(selected.coachId)}</Text><Text style={ui.body}>Khóa học: {referenceLabel(selected.courseId)}</Text><Text style={ui.heading}>{currency(price)}</Text></View>

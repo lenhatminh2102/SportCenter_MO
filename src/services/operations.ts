@@ -29,7 +29,7 @@ export const coachesApi = {
   myStudents: (token: string) => request<Entity[]>('/api/coaches/my-students', { token }),
 };
 export const subjectsApi = crud('/api/subjects', ['name']);
-export const coursesApi = crud('/api/courses', ['subjectId', 'name', 'description', 'pricing', 'status']);
+export const coursesApi = crud('/api/courses', ['subjectId', 'name', 'description', 'pricing', 'status', 'imageUrl']);
 // One price per class slot. The BE still stores pricing.personal/group, so the app
 // writes the same value to both (see toCoursePricing) and always reads the group price.
 export function coursePrice(course: Entity | undefined): number | undefined {
@@ -39,7 +39,7 @@ export function coursePrice(course: Entity | undefined): number | undefined {
   if (typeof price === 'number' && Number.isFinite(price) && price >= 0) return price;
 }
 export const toCoursePricing = (price: number) => ({ personal: price, group: price });
-export const lessonsApi = { ...crud('/api/lessons', ['classId', 'learningPathId', 'title', 'description', 'order']), byClass: (token: string, id: string) => request<Entity[]>(`/api/lessons/class/${encodeURIComponent(id)}`, { token }) };
+export const lessonsApi = { ...crud('/api/lessons', ['classId', 'learningPathId', 'title', 'description', 'order', 'videoUrl']), byClass: (token: string, id: string) => request<Entity[]>(`/api/lessons/class/${encodeURIComponent(id)}`, { token }) };
 export const schedulesApi = {
   ...crud('/api/schedules', ['classId', 'lessonId', 'roomId', 'date', 'startTime', 'endTime', 'status']),
   my: (token: string) => request<Entity[]>('/api/schedules/my', { token }),

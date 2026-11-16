@@ -3,13 +3,15 @@ export type ResourceAction = 'create' | 'update' | 'remove';
 const writeRoles: Partial<Record<ResourceKey, string[]>> = {
   'class-registrations': ['MEMBER', 'RECEPTIONIST', 'CENTER_MANAGER'],
   attendances: ['CENTER_MANAGER', 'COACH', 'RECEPTIONIST'],
-  'lesson-progress': ['MEMBER', 'COACH', 'CENTER_MANAGER'],
+  'lesson-progress': ['COACH', 'CENTER_MANAGER'], // members only view their progress
   'workout-plans': ['COACH'],
   'workout-results': ['COACH', 'MEMBER'],
 };
 export const personalResources: ResourceKey[] = ['class-registrations', 'attendances', 'lesson-progress', 'workout-plans', 'workout-results'];
 export function isOwnRecord(resource: ResourceKey, role: string, actorId: string, item: Entity): boolean {
   if (!actorId) return false;
+  // A class-wide plan has no memberId; the BE only returns it for classes the member is confirmed in.
+  if (role === 'MEMBER' && resource === 'workout-plans' && !referenceId(item.memberId) && referenceId(item.classId)) return true;
   if (role === 'MEMBER') return referenceId(item.memberId) === actorId;
   if (role === 'COACH' && (resource === 'workout-plans' || resource === 'classes')) return referenceId(item.coachId) === actorId;
   if (role === 'COACH' && resource === 'schedules') {

@@ -1,7 +1,9 @@
 import { trainingResources } from './training-resources';
 import { validPhone } from './validation';
+import { safeImageUrl } from './image';
+import { videoEmbed } from './video';
 import { coursePrice, toCoursePricing, referenceId, type Entity, type ResourceInput, type ResourceKey } from '@/services/operations';
-export type FormField = { key: string; label: string; required?: boolean; type?: 'id' | 'phone' | 'number' | 'date' | 'time' | 'multiline' | 'money'; options?: { value: string; label: string }[]; createOnly?: boolean; updateOnly?: boolean; relation?: string };
+export type FormField = { key: string; label: string; required?: boolean; type?: 'id' | 'phone' | 'number' | 'date' | 'time' | 'multiline' | 'money' | 'url'; options?: { value: string; label: string }[]; createOnly?: boolean; updateOnly?: boolean; relation?: string };
 export type ResourceDefinition = { title: string; singular: string; titleKey: string; fields: FormField[] };
 export const resources: Record<ResourceKey, ResourceDefinition> = {
   ...trainingResources,
@@ -21,6 +23,7 @@ export const resources: Record<ResourceKey, ResourceDefinition> = {
     { key: 'name', label: 'Tên khóa học', required: true },
     { key: 'price', label: 'Học phí cho 1 suất trong lớp (VND)', type: 'money', required: true },
     { key: 'description', label: 'Mô tả', type: 'multiline' },
+    { key: 'imageUrl', label: 'Ảnh bìa khóa học (link https, để trống = ảnh minh họa theo môn)', type: 'url' },
     { key: 'status', label: 'Trạng thái', required: true, options: [{ value: 'ACTIVE', label: 'Hoạt động' }, { value: 'INACTIVE', label: 'Tạm dừng' }] },
   ] },
   lessons: { title: 'Bài học', singular: 'bài học', titleKey: 'title', fields: [
@@ -28,6 +31,7 @@ export const resources: Record<ResourceKey, ResourceDefinition> = {
     { key: 'learningPathId', label: 'Lộ trình học (cùng khóa học với lớp)', type: 'id', relation: '/api/learning-paths', required: true },
     { key: 'title', label: 'Tên bài học', required: true }, { key: 'description', label: 'Nội dung', type: 'multiline' },
     { key: 'order', label: 'Thứ tự bài (từ 1)', type: 'number', required: true },
+    { key: 'videoUrl', label: 'Video hướng dẫn (link YouTube, Vimeo hoặc Google Drive)', type: 'url' },
   ] },
   schedules: { title: 'Lịch tập', singular: 'lịch tập', titleKey: 'date', fields: [
     { key: 'classId', label: 'Lớp học', type: 'id', relation: '/api/classes', required: true },
@@ -60,6 +64,8 @@ export function validateResource(resource: ResourceKey, values: Record<string, s
     payload[field.key] = value;
     if (field.required && !value) errors[field.key] = 'Vui lòng nhập thông tin này.';
     else if (value && field.type === 'id' && !/^[a-f\d]{24}$/i.test(value)) errors[field.key] = 'Chọn bản ghi hoặc nhập ID hợp lệ gồm 24 ký tự.';
+    else if (value && field.type === 'url' && field.key === 'imageUrl' && !safeImageUrl(value)) errors[field.key] = 'Dán link ảnh bắt đầu bằng https://';
+    else if (value && field.type === 'url' && field.key === 'videoUrl' && !videoEmbed(value)) errors[field.key] = 'Chỉ nhận link YouTube, Vimeo hoặc Google Drive.';
     else if (value && field.type === 'phone' && !validPhone(value)) errors[field.key] = 'Số điện thoại Việt Nam chưa hợp lệ.';
     else if (field.type === 'money') {
       const number = Number(value);

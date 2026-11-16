@@ -19,7 +19,7 @@ test('staff roles have a small set of bottom tabs for daily tasks', () => {
   assert.equal(nav.roleHome('CENTER_MANAGER'), '/manager');
   assert.equal(nav.roleHome('MEMBER'), '/member');
   assert.equal(nav.isStaffRole('RECEPTIONIST'), false);
-  assert.equal(nav.staffTabs('COACH').map(item => item.path).join(','), '/coach,/workspace/schedules,/coach-students,/account');
+  assert.equal(nav.staffTabs('COACH').map(item => item.path).join(','), '/coach,/attendance,/workspace/schedules,/coach-students,/account');
   assert.equal(nav.staffTabs('CENTER_MANAGER').map(item => item.path).join(','), '/manager,/workspace/classes,/workspace/schedules,/members,/account');
   assert.equal(nav.isStaffPage('/staff-accounts'), true);
   for (const path of ['/manager/reports', '/manager/memberships', '/manager/role-access']) {
@@ -77,9 +77,9 @@ test('member navigation keeps personal home separate from staff and auth screens
   const nav = load('src/utils/member-navigation.ts');
   assert.equal(nav.isMemberPage('/member'), true); assert.equal(nav.isMemberPage('/payment-edit'), true);
   assert.equal(nav.isMemberPage('/login'), false); assert.equal(nav.isMemberPage('/manager'), false);
-  assert.equal(nav.activeMemberTab('/class-detail'), '/workspace/classes');
-  assert.equal(nav.activeMemberTab('/workspace/classes/edit'), '/workspace/classes');
-  assert.equal(nav.isMemberPage('/notifications'), false);
+  assert.equal(nav.activeMemberTab('/class-detail'), '/explore');
+  assert.equal(nav.activeMemberTab('/workspace/classes/edit'), '/explore');
+  assert.equal(nav.isMemberPage('/notifications'), true);
 });
 
 test('reception has a dedicated registration tab', () => {

@@ -7,9 +7,9 @@ function modules(fetch) {
   const cache = {};
   function load(name) {
     if (cache[name]) return cache[name];
-    const context = { exports: {}, fetch, process: { env: {} }, AbortController, setTimeout, clearTimeout, TypeError, require: dependency => {
+    const context = { exports: {}, fetch, process: { env: {} }, URL, AbortController, setTimeout, clearTimeout, TypeError, require: dependency => {
       if (dependency === 'react-native') return { Platform: { OS: 'web' } };
-      const aliases = { './rooms': 'src/services/rooms.ts', './api': 'src/services/api.ts', './validation': 'src/utils/validation.ts', './training-resources': 'src/utils/training-resources.ts', '@/services/operations': 'src/services/operations.ts' };
+      const aliases = { './rooms': 'src/services/rooms.ts', './api': 'src/services/api.ts', './validation': 'src/utils/validation.ts', './training-resources': 'src/utils/training-resources.ts', '@/services/operations': 'src/services/operations.ts', './image': 'src/utils/image.ts', './video': 'src/utils/video.ts' };
       return load(aliases[dependency]);
     } };
     cache[name] = context.exports;
@@ -142,8 +142,12 @@ test('training actions match role-specific backend routes', () => {
 });
 test('members cannot edit records belonging to other members', () => {
   const { access } = modules();
-  assert.equal(access.canUseResource('lesson-progress', 'MEMBER', 'update', { memberId: { _id: id } }, id), true);
+  assert.equal(access.canUseResource('lesson-progress', 'MEMBER', 'update', { memberId: { _id: id } }, id), false); // members only view progress
   assert.equal(access.canUseResource('lesson-progress', 'MEMBER', 'update', { memberId: 'another-member' }, id), false);
+  // Class-wide workout plans are visible to members (BE scopes them to confirmed classes) but stay read-only.
+  assert.equal(access.isOwnRecord('workout-plans', 'MEMBER', id, { memberId: null, classId: { _id: 'class-1' } }), true);
+  assert.equal(access.isOwnRecord('workout-plans', 'MEMBER', id, { memberId: 'another-member', classId: null }), false);
+  assert.equal(access.canUseResource('workout-plans', 'MEMBER', 'update', { memberId: null, classId: 'class-1' }, id), false);
   assert.equal(access.canUseResource('class-registrations', 'MEMBER', 'create'), false);
   assert.equal(access.isOwnRecord('workout-plans', 'COACH', id, { coachId: { _id: id } }), true);
   assert.equal(access.isOwnRecord('workout-results', 'COACH', id, { workoutPlanId: { coachId: { _id: id } } }), true);

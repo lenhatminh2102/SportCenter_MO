@@ -1,4 +1,4 @@
-import { buildCoachRoster, type CoachStudent } from '@/utils/coach-roster';
+import { buildCoachRoster, studentsAsRegistrations, type CoachStudent } from '@/utils/coach-roster';
 import { membersApi } from './members';
 import { activityLogsApi, classRegistrationsApi, classesApi, coachesApi, schedulesApi, workoutPlansApi, workoutResultsApi, entityId, referenceId, type Entity } from './operations';
 import type { StaffRole } from '@/utils/staff-navigation';
@@ -44,7 +44,8 @@ export function summarizeDashboard(role: StaffRole, userId: string, data: Dashbo
 export async function loadDashboard(role: StaffRole, userId: string, token: string): Promise<DashboardData> {
   const sources: [keyof DashboardSources, string, () => Promise<Entity[]>][] = [
     ['coaches', 'Huấn luyện viên', async () => role === 'COACH' ? [await coachesApi.me(token)] : coachesApi.list(token)], ['classes', 'Lớp học', () => classesApi.list(token)],
-    ['schedules', 'Lịch tập', () => role === 'COACH' ? schedulesApi.coachMy(token) : schedulesApi.list(token)], ['registrations', 'Đăng ký lớp', () => classRegistrationsApi.list(token)],
+    ['schedules', 'Lịch tập', () => role === 'COACH' ? schedulesApi.coachMy(token) : schedulesApi.list(token)], // COACH may not list /class-registrations; their students come from /coaches/my-students.
+    ['registrations', 'Đăng ký lớp', async () => role === 'COACH' ? studentsAsRegistrations(await coachesApi.myStudents(token)) : classRegistrationsApi.list(token)],
     ...(role === 'CENTER_MANAGER' ? [
       ['members', 'Hội viên', async () => (await membersApi.list(token)).map(item => ({ ...item }))],
       ['logs', 'Lịch sử thao tác', () => activityLogsApi.list(token)],

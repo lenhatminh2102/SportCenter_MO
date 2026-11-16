@@ -10,6 +10,15 @@ export function buildCoachRoster(registrations: Entity[], classes: Entity[], coa
     return [{ id: entityId(record) || `${entityId(classInfo)}:${memberId}`, memberId, member, class: classInfo, status: record.status as CoachStudent['status'], registeredAt: record.registeredAt || record.createdAt }];
   }).sort((a, b) => String(b.registeredAt || '').localeCompare(String(a.registeredAt || '')));
 }
+/**
+ * GET /api/coaches/my-students rows ({ member, class, registeredAt }, confirmed only) → registration
+ * records, so buildCoachRoster can use them like /api/class-registrations (which a COACH may not read).
+ */
+export function studentsAsRegistrations(students: Entity[]): Entity[] {
+  return (Array.isArray(students) ? students : []).map(row => ({
+    classId: row.class, memberId: row.member, status: row.status || 'CONFIRMED', registeredAt: row.registeredAt,
+  }));
+}
 export function coachStudentName(item: CoachStudent) {
   const name = item.member?.fullName;
   return typeof name === 'string' && name.trim() ? name.trim() : 'Chưa tải được tên hội viên';

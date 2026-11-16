@@ -5,7 +5,7 @@ export const API_URL = (process.env.EXPO_PUBLIC_API_URL ||
 export type ApiUser = { id: string; email: string; role: string; status: string };
 export type AuthSession = { token: string; user: ApiUser };
 type Envelope<T> = { success: boolean; message?: string; data?: T };
-type RequestOptions = { method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; body?: unknown; formData?: FormData; token?: string };
+type RequestOptions = { method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; body?: unknown; formData?: FormData; token?: string; timeoutMs?: number };
 export class ApiError extends Error {
   constructor(message: string, public status: number) { super(message); this.name = 'ApiError'; }
 }
@@ -14,9 +14,9 @@ export function onUnauthorized(listener: (token: string) => void) {
   unauthorizedListeners.add(listener);
   return () => { unauthorizedListeners.delete(listener); };
 }
-async function requestEnvelope<T>(path: string, options: RequestOptions = {}): Promise<Envelope<T>> {
+export async function requestEnvelope<T>(path: string, options: RequestOptions = {}): Promise<Envelope<T> & { requiresOTP?: boolean }> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
+  const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 15000);
   try {
     const response = await fetch(`${API_URL}${path}`, {
       method: options.method || (options.body === undefined && !options.formData ? 'GET' : 'POST'),
@@ -58,6 +58,24 @@ export async function requestHtml(path: string, token: string): Promise<string> 
 }
 export const authApi = {
   register: (email: string, password: string) => request<ApiUser>('/api/auth/register', { body: { email: email.trim().toLowerCase(), password, role: 'MEMBER' } }),
-  login: (email: string, password: string) => request<AuthSession>('/api/auth/login', { body: { email: email.trim().toLowerCase(), password } }),
+  login: (email: string, password: string) => request<AuthSession>('/api/auth/login', {
+    body: { email: email.trim().toLowerCase(), password },
+    timeoutMs: 60_000,
+  }),
   me: (token: string) => request<ApiUser>('/api/auth/me', { token }),
+  google: async (idToken: string) => parseGoogleAuth(await requestEnvelope<{ token?: string; user?: ApiUser; email?: string; challengeToken?: string }>('/api/auth/google', { body: { idToken } })),
+  verifyGoogleOtp: (challengeToken: string, otp: string) => request<AuthSession>('/api/auth/google/verify-otp', { body: { challengeToken, otp } }),
 };
+
+export type GoogleAuthResult = { requiresOTP: false; token: string; user: ApiUser } | { requiresOTP: true; email: string; challengeToken: string };
+
+/** BE answers { requiresOTP: false, data: { token, user } } or { requiresOTP: true, data: { email, challengeToken } }. */
+export function parseGoogleAuth(result: { requiresOTP?: boolean; data?: { token?: string; user?: ApiUser; email?: string; challengeToken?: string } }): GoogleAuthResult {
+  const data = result?.data;
+  if (result?.requiresOTP === true) {
+    if (!data?.email || !data.challengeToken) throw new Error('Máy chủ chưa trả về thông tin xác minh OTP.');
+    return { requiresOTP: true, email: data.email, challengeToken: data.challengeToken };
+  }
+  if (!data?.token || !data.user) throw new Error('Máy chủ chưa trả về phiên đăng nhập Google hợp lệ.');
+  return { requiresOTP: false, token: data.token, user: data.user };
+}
