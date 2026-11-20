@@ -31,3 +31,16 @@ export function validateStaffAccount(input: StaffAccountInput, validEmail: (valu
   if (input.role === 'COACH' && !/^[a-f\d]{24}$/i.test(input.subjectId || '')) errors.subjectId = 'Chọn môn thể thao huấn luyện viên phụ trách.';
   return errors;
 }
+
+export type StaffFilter = 'ALL' | StaffRoleInput | 'INACTIVE';
+export const staffFilters: { value: StaffFilter; label: string }[] = [
+  { value: 'ALL', label: 'Tất cả' }, { value: 'COACH', label: 'Huấn luyện viên' },
+  { value: 'RECEPTIONIST', label: 'Lễ tân' }, { value: 'INACTIVE', label: 'Đã khóa' },
+];
+/** Search by name, email or phone; the role filters show active and locked accounts, 'INACTIVE' shows locked ones only. */
+export function filterStaff(items: StaffAccount[], search: string, filter: StaffFilter) {
+  const term = search.trim().toLocaleLowerCase('vi');
+  return items.filter(item =>
+    (filter === 'ALL' || (filter === 'INACTIVE' ? item.status === 'INACTIVE' : item.role === filter))
+    && `${item.fullName || ''} ${item.email} ${item.phone || ''}`.toLocaleLowerCase('vi').includes(term));
+}

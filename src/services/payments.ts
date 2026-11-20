@@ -8,6 +8,8 @@ export const paymentsApi = {
   receipt: (token: string, id: string) => requestHtml(`/api/payments/${encodeURIComponent(id)}/receipt`, token),
   list: (token: string) => request<Entity[]>('/api/payments', { token }),
   create: (token: string, classRegistrationId: string, paymentMethod: PaymentMethod) => request<Entity>('/api/payments', { token, body: { classRegistrationId, paymentMethod } }),
+  /** MEMBER online payment for the app: BE tags it payOS (POST /api/payments tags members VNPAY, which /checkout cannot open). */
+  createPayos: (token: string, classRegistrationId: string) => request<Entity>('/api/payments/payos', { token, body: { classRegistrationId, paymentMethod: 'ONLINE' } }),
   update: (token: string, id: string, paymentMethod: PaymentMethod) => request<Entity>(`/api/payments/${encodeURIComponent(id)}`, { token, method: 'PUT', body: { paymentMethod } }),
   vnpay: (token: string, id: string) => request<{ paymentUrl: string }>(`/api/payments/${encodeURIComponent(id)}/vnpay`, { token, body: {} }),
   /** returnTo: app deep link payOS should come back to (BE accepts only the app schemes). */
@@ -38,4 +40,17 @@ export const isVoidedPayment = (payment: Entity, registration?: Entity) => payme
 export function paymentStatusLabel(payment: Entity, registration?: Entity) {
   if (isVoidedPayment(payment, registration)) return 'Không còn hiệu lực · đăng ký đã hủy';
   return payment.status === 'SUCCESS' ? 'Thanh toán thành công' : payment.status === 'FAILED' ? 'Thanh toán thất bại' : 'Chờ thanh toán';
+}
+
+/** Figures above the payments list (web Payments): a pending payment of a cancelled registration is no longer due. */
+export function paymentSummary(items: Entity[], registrations: Entity[]) {
+  const sum = (list: Entity[]) => list.reduce((total, item) => total + (Number(item.amount) || 0), 0);
+  const pending = items.filter(item => item.status === 'PENDING' && registrationFor(item, registrations)?.status !== 'CANCELLED');
+  return { total: items.length, collected: sum(items.filter(item => item.status === 'SUCCESS')), pendingCount: pending.length, pendingAmount: sum(pending) };
+}
+const fold = (value: unknown) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+/** Accent-free search over the class, member, method label and amount shown on a payment card. */
+export function matchesPayment(search: string, ...fields: unknown[]) {
+  const needle = fold(search).trim();
+  return !needle || fold(fields.join(' ')).includes(needle);
 }

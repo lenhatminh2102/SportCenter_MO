@@ -24,9 +24,17 @@ export function staffTabs(role: WorkspaceRole): AppTab[] {
     const attendance: AppTab = { label: 'Điểm danh', symbol: '✓', href: '/attendance', path: '/attendance' };
     return [home, attendance, { ...schedules, label: 'Lịch dạy' }, students, account];
   }
-  if (role === 'RECEPTIONIST') return [home, members, resourceTab('class-registrations', 'Đăng ký', '＋'), account];
-  return [home, resourceTab('classes', 'Lớp học', '▤'), schedules, members, account];
+  if (role === 'RECEPTIONIST') return [home, { label: 'Quét QR', symbol: '⌗', href: '/checkin-desk', path: '/checkin-desk' }, members, resourceTab('class-registrations', 'Đăng ký', '＋'), account];
+  return [home, resourceTab('classes', 'Lớp học', '▤'), { ...schedules, label: 'Lịch hoạt động' }, members, account];
 }
+
+/** Manager screens that are not tabs: reached from the manager home and the account screen (the web sidebar lists them). */
+export const managerAdminLinks: { label: string; description: string; href: Href; path: string }[] = [
+  { label: 'Huấn luyện viên & nhân sự', description: 'Tạo, sửa, khóa tài khoản HLV và lễ tân', href: '/staff-accounts', path: '/staff-accounts' },
+  { label: 'Gói tập & học phí', description: 'Danh mục gói, gán hoặc gia hạn gói cho hội viên', href: '/manager/memberships', path: '/manager/memberships' },
+  { label: 'Báo cáo & doanh thu', description: 'Doanh thu thực thu, hội viên mới, giao dịch', href: '/manager/reports', path: '/manager/reports' },
+  { label: 'Lịch sử thao tác', description: 'Ai đã làm gì trên hệ thống', href: { pathname: '/workspace/[resource]', params: { resource: 'activity-logs' } }, path: '/workspace/activity-logs' },
+];
 
 export function activeStaffTab(path: string, role: WorkspaceRole) {
   const aliases: Record<string, string> = {
@@ -50,6 +58,6 @@ export function isStaffPage(path: string) {
     '/class-detail', '/registration-detail', '/enroll', '/schedule-import', '/payments', '/payment-edit',
     '/payment-receipt', '/support', '/operations', '/staff-accounts',
     '/homeworks', '/feedbacks', '/pricing', '/notifications', '/notification-compose',
-    '/attendance', '/session', '/payment-result', '/catalog-import',
+    '/attendance', '/session', '/payment-result', '/catalog-import', '/checkin-desk',
   ].some(root => path === root || path.startsWith(`${root}/`));
 }

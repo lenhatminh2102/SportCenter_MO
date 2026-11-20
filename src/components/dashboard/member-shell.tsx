@@ -14,7 +14,7 @@ export function MemberShell({ children }: PropsWithChildren) {
   return <MemberShellContext.Provider value={active}>
     <View style={{ flex: 1, backgroundColor: active ? colors.public : 'transparent' }}>
       <View style={{ flex: 1, minHeight: 0 }}>{children}</View>
-      {active && <BottomTabs tabs={memberTabs} selected={activeMemberTab(path)} />}
+      {active && <BottomTabs tabs={memberTabs} selected={activeMemberTab(path)} accent="#F4511E" muted="#64748B" highlight="#FFF0E9" />}
     </View>
   </MemberShellContext.Provider>;
 }

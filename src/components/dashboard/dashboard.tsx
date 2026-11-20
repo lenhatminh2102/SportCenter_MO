@@ -6,12 +6,15 @@ import { useAuth } from '@/context/auth';
 import { useStaffShell } from '@/context/staff-shell';
 import { loadDashboard } from '@/services/dashboard';
 import { entityId, referenceId, referenceLabel } from '@/services/operations';
-import { isStaffRole, roleHome, type StaffRole } from '@/utils/staff-navigation';
+import { isStaffRole, managerAdminLinks, roleHome, type StaffRole } from '@/utils/staff-navigation';
 import { useApiQuery } from '@/hooks/use-api-query';
 import { AccessScreen, QueryStatus } from '@/components/sport/access';
 import { Button } from '@/components/sport/ui';
 import { ui } from '@/components/sport/styles';
 import { colors } from '@/data/sport';
+import { coachCards, managerCards } from '@/utils/home-cards';
+import { coachStudentName } from '@/utils/coach-roster';
+import { AttentionList, MetricGrid } from './home-widgets';
 
 export function Dashboard({ role }: { role: StaffRole }) {
   const { user, token } = useAuth();
@@ -30,9 +33,7 @@ export function Dashboard({ role }: { role: StaffRole }) {
 
   const manager = role === 'CENTER_MANAGER';
   const data = query.data;
-  const metrics = data?.metrics.filter(item => manager
-    ? ['members', 'classes'].includes(item.resource)
-    : ['schedules', 'coach-students'].includes(item.resource));
+  const home = data?.manager ? managerCards(data.manager, data.today) : data?.coach ? coachCards(data.coach) : null;
   const openResource = (resource: string) => {
     if (resource === 'members') return router.navigate('/members');
     if (resource === 'coach-students') return router.navigate('/coach-students');
@@ -47,13 +48,8 @@ export function Dashboard({ role }: { role: StaffRole }) {
       </View>
       <QueryStatus loading={query.loading} error={query.error} retry={reload} />
       {!!data?.errors.length && <Text accessibilityRole="alert" style={ui.error}>Một phần dữ liệu chưa tải được. Kéo xuống để thử lại.</Text>}
-      {metrics && <View style={{ flexDirection: 'row', gap: 10 }}>
-        {metrics.map(item => <Pressable key={item.resource} accessibilityRole="button" accessibilityLabel={`${item.label}: ${item.value ?? 'chưa tải được'}`}
-          onPress={() => openResource(item.resource)} style={({ pressed }) => [ui.card, { flex: 1, minHeight: 88, padding: 14, gap: 4, opacity: pressed ? 0.7 : 1 }]}>
-          <Text style={{ color: colors.ink, fontSize: 26, fontWeight: '800' }}>{item.value ?? '—'}</Text>
-          <Text style={[ui.body, { fontSize: 13, lineHeight: 18 }]}>{item.label}</Text>
-        </Pressable>)}
-      </View>}
+      {home && <MetricGrid items={home.metrics} />}
+      {home && <AttentionList items={home.attention} />}
       {data && <View style={{ gap: 10 }}>
         <View style={ui.between}>
           <Text style={ui.heading}>{manager ? 'Lịch sắp tới' : 'Buổi dạy sắp tới'}</Text>
@@ -77,9 +73,40 @@ export function Dashboard({ role }: { role: StaffRole }) {
           </View>;
         })}
       </View>}
+      {!manager && data && <View style={{ gap: 10 }}>
+        <View style={ui.between}>
+          <Text style={ui.heading}>Học viên mới & kết quả</Text>
+          <Pressable accessibilityRole="button" onPress={() => openResource('coach-students')} style={{ minHeight: 44, justifyContent: 'center' }}>
+            <Text style={ui.link}>Xem học viên</Text>
+          </Pressable>
+        </View>
+        {!data.enrollments.length && !data.activity.length && <Text style={ui.body}>Chưa có học viên hoặc kết quả tập mới.</Text>}
+        {data.enrollments.slice(0, 2).map(item => <View key={`${item.memberId}-${entityId(item.class)}`} style={[ui.card, { gap: 4, padding: 14 }]}>
+          <Text style={ui.heading}>{coachStudentName(item)}</Text>
+          <Text style={ui.body}>{referenceLabel(item.class)} · {item.status === 'CONFIRMED' ? 'Đã xác nhận' : 'Chờ thanh toán'}</Text>
+        </View>)}
+        {data.activity.map(result => <View key={entityId(result)} style={[ui.card, { gap: 4, padding: 14 }]}>
+          <Text style={ui.heading}>{String(result.result || '').slice(0, 80) || 'Kết quả tập'}</Text>
+          <Text style={ui.body}>{referenceLabel(result.memberId)}</Text>
+        </View>)}
+        <View style={ui.card}>
+          <Text style={ui.eyebrow}>ĐỒNG HÀNH CÙNG HỌC VIÊN</Text>
+          <Text style={ui.body}>Gửi nhận xét cho cả lớp hoặc từng học viên, giao bài tập về nhà và theo dõi tiến độ.</Text>
+          <Button secondary title="Gửi nhận xét" onPress={() => router.push('/feedbacks')} />
+          <Button secondary title="Gửi thông báo cho học viên" onPress={() => router.push('/notification-compose')} />
+        </View>
+      </View>}
       {manager && <View style={{ gap: 8 }}>
         <Button title="Thêm lịch tập" onPress={() => router.push({ pathname: '/workspace/[resource]/edit', params: { resource: 'schedules' } })} />
-        <Button secondary title="Xem báo cáo" onPress={() => router.push('/manager/reports')} />
+        <Button secondary title="Quét QR ra/vào" onPress={() => router.push('/checkin-desk')} />
+      </View>}
+      {manager && <View style={{ gap: 10 }}>
+        <Text style={ui.heading}>Quản trị trung tâm</Text>
+        {managerAdminLinks.map(link => <Pressable key={link.path} accessibilityRole="button" accessibilityLabel={link.label}
+          onPress={() => router.push(link.href)} style={({ pressed }) => [ui.card, { padding: 14, gap: 4, opacity: pressed ? 0.7 : 1 }]}>
+          <View style={ui.between}><Text style={ui.heading}>{link.label}</Text><Text style={ui.link}>›</Text></View>
+          <Text style={[ui.body, { fontSize: 13, lineHeight: 18 }]}>{link.description}</Text>
+        </Pressable>)}
       </View>}
     </ScrollView>
   </SafeAreaView>;
