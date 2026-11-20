@@ -58,12 +58,9 @@ export type MemberMembership = {
   planId: string; planName: string; price: number; durationDays: number;
   startsAt: string; expiresAt: string; status: 'ACTIVE' | 'EXPIRED';
 };
-export type ConfigurableRole = 'COACH' | 'RECEPTIONIST' | 'MEMBER';
-export type RoleAccess = { role: ConfigurableRole; disabled: string[] };
 
 const base = '/api/manager';
 const plans = `${base}/membership-plans`;
-const access = `${base}/role-access`;
 const membership = (id: string) => `${base}/members/${encodeURIComponent(id)}/membership`;
 
 export const managerApi = {
@@ -80,9 +77,28 @@ export const managerApi = {
     request<MemberMembership | null>(membership(memberId), { token }),
   assignMembership: (token: string, memberId: string, planId: string) =>
     request<MemberMembership>(membership(memberId), { token, body: { planId } }),
-  renewMembership: (token: string, memberId: string, expectedExpiresAt: string) =>
-    request<MemberMembership>(`${membership(memberId)}/renew`, { token, body: { expectedExpiresAt } }),
-  getRoleAccess: (token: string) => request<{ accessKeys: string[]; roles: RoleAccess[] }>(access, { token }),
-  updateRoleAccess: (token: string, role: ConfigurableRole, disabled: string[]) =>
-    request<RoleAccess>(`${access}/${encodeURIComponent(role)}`, { token, method: 'PUT', body: { disabled } }),
+  renewMembership: (token: string, memberId: string, planId: string, expectedExpiresAt: string) =>
+    request<MemberMembership>(`${membership(memberId)}/renew`, { token, body: { planId, expectedExpiresAt } }),
 };
+
+const vnDate = (iso: string) => iso.split('-').reverse().join('/');
+/** Revenue bars for the report chart (web Reports chartBars): one bar per day up to 14 days, else grouped into ≤ 12 bars. */
+export function chartBars(daily: ManagerReport['daily']) {
+  const label = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  if (daily.length <= 14) return daily.map(day => ({ label: label(day.date), value: day.revenue, title: vnDate(day.date) }));
+  const size = Math.ceil(daily.length / 12);
+  return Array.from({ length: Math.ceil(daily.length / size) }, (_, index) => {
+    const slice = daily.slice(index * size, index * size + size);
+    return { label: label(slice[0].date), value: slice.reduce((sum, day) => sum + day.revenue, 0), title: `${vnDate(slice[0].date)} – ${vnDate(slice[slice.length - 1].date)}` };
+  });
+}
+/** Quick ranges of the web report page, all ending today (YYYY-MM-DD). */
+export function reportPresets(today: string): { label: string; from: string; to: string }[] {
+  const back = (days: number) => new Date(Date.parse(`${today}T00:00:00Z`) - days * 86400000).toISOString().slice(0, 10);
+  return [
+    { label: '7 ngày', from: back(6), to: today },
+    { label: '30 ngày', from: back(29), to: today },
+    { label: 'Tháng này', from: `${today.slice(0, 7)}-01`, to: today },
+    { label: 'Năm nay', from: `${today.slice(0, 4)}-01-01`, to: today },
+  ];
+}

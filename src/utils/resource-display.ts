@@ -8,7 +8,7 @@ export function titleFor(resource: ResourceKey, item: Entity) {
   const value = item[resources[resource].titleKey];
   return typeof value === 'object' ? referenceLabel(value) : String(value || 'Chưa có tên');
 }
-export const statusLabels: Record<string, string> = { SCHEDULED: 'Đã lên lịch', COMPLETED: 'Hoàn thành', CANCELLED: 'Đã hủy', PENDING_PAYMENT: 'Chờ thanh toán', CONFIRMED: 'Đã xác nhận', PRESENT: 'Có mặt', ABSENT: 'Vắng mặt', NOT_STARTED: 'Chưa bắt đầu', IN_PROGRESS: 'Đang học', DRAFT: 'Bản nháp', APPROVED: 'Đã duyệt', ACTIVE: 'Hoạt động', INACTIVE: 'Tạm dừng' };
+export const statusLabels: Record<string, string> = { SCHEDULED: 'Đã lên lịch', COMPLETED: 'Hoàn thành', CANCELLED: 'Đã hủy', PENDING_PAYMENT: 'Chờ lễ tân xác nhận', CONFIRMED: 'Đã xác nhận', PRESENT: 'Có mặt', ABSENT: 'Vắng mặt', NOT_STARTED: 'Chưa bắt đầu', IN_PROGRESS: 'Đang học', DRAFT: 'Bản nháp', APPROVED: 'Đã duyệt', ACTIVE: 'Hoạt động', INACTIVE: 'Tạm dừng' };
 const tuition = (price?: number) => price === undefined ? 'Chưa có học phí' : price.toLocaleString('vi-VN') + ' ₫';
 const statuses = statusLabels;
 export function detailFor(resource: ResourceKey, item: Entity): string {

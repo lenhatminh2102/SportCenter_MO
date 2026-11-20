@@ -1,13 +1,26 @@
 import { buildCoachRoster, studentsAsRegistrations, type CoachStudent } from '@/utils/coach-roster';
 import { membersApi } from './members';
+import { paymentsApi } from './payments';
 import { activityLogsApi, classRegistrationsApi, classesApi, coachesApi, schedulesApi, workoutPlansApi, workoutResultsApi, entityId, referenceId, type Entity } from './operations';
 import type { StaffRole } from '@/utils/staff-navigation';
 export type DashboardMetric = { label: string; value: number | null; resource: string };
-export type DashboardData = { enrollments: CoachStudent[]; name: string; metrics: DashboardMetric[]; sessions: Entity[]; activity: Entity[]; week: { day: string; count: number | null }[]; errors: string[]; today: string };
-export type DashboardSources = Partial<Record<'members' | 'coaches' | 'classes' | 'schedules' | 'registrations' | 'plans' | 'results' | 'logs', Entity[]>>;
+/** Manager home figures (web ManagerHome); null when that list could not be loaded. */
+export type ManagerSummary = { members: number | null; classes: number | null; todaySessions: number | null; revenueMonth: number | null; pendingRegistrations: number | null };
+/** Coach home figures (web CoachHome); null when that list could not be loaded. */
+export type CoachSummary = { classes: number | null; students: number; pendingStudents: number; todaySessions: number | null; plans: number | null; drafts: number | null };
+export type DashboardData = { enrollments: CoachStudent[]; name: string; metrics: DashboardMetric[]; sessions: Entity[]; activity: Entity[]; week: { day: string; count: number | null }[]; errors: string[]; today: string; manager: ManagerSummary | null; coach: CoachSummary | null };
+export type DashboardSources = Partial<Record<'members' | 'coaches' | 'classes' | 'schedules' | 'registrations' | 'plans' | 'results' | 'logs' | 'payments', Entity[]>>;
 export function bangkokDate(now: Date) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
   return ['year', 'month', 'day'].map(key => parts.find(part => part.type === key)!.value).join('-');
+}
+/** Successful payments whose payment day (Vietnam time) falls in the month of `today` (YYYY-MM-DD). */
+export function revenueOfMonth(payments: Entity[] | undefined, today: string) {
+  if (!payments) return null;
+  const month = today.slice(0, 7);
+  return payments.filter(item => item.status === 'SUCCESS')
+    .filter(item => { const at = item.paymentDate || item.updatedAt || item.createdAt; return !!at && bangkokDate(new Date(String(at))).slice(0, 7) === month; })
+    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 }
 export function summarizeDashboard(role: StaffRole, userId: string, data: DashboardSources, now = new Date()): Omit<DashboardData, 'errors'> {
   const today = bangkokDate(now);
@@ -39,7 +52,22 @@ export function summarizeDashboard(role: StaffRole, userId: string, data: Dashbo
     const day = new Date(Date.parse(`${today}T00:00:00Z`) + index * 86400000).toISOString().slice(0, 10);
     return { day, count: schedules?.filter(item => String(item.date).slice(0, 10) === day && item.status !== 'CANCELLED').length ?? null };
   });
-  return { enrollments, today, name: role === 'COACH' ? String(coach!.fullName || 'Coach') : 'Quản lý', metrics, sessions, activity, week };
+  const manager: ManagerSummary | null = role === 'CENTER_MANAGER' ? {
+    members: data.members?.length ?? null,
+    classes: classes?.length ?? null,
+    todaySessions: week[0].count,
+    revenueMonth: revenueOfMonth(data.payments, today),
+    pendingRegistrations: data.registrations?.filter(item => item.status === 'PENDING_PAYMENT').length ?? null,
+  } : null;
+  const coachSummary: CoachSummary | null = role === 'COACH' ? {
+    classes: classes?.length ?? null,
+    students: new Set(enrollments.filter(item => item.status === 'CONFIRMED').map(item => item.memberId)).size,
+    pendingStudents: enrollments.filter(item => item.status === 'PENDING_PAYMENT').length,
+    todaySessions: week[0].count,
+    plans: plans?.length ?? null,
+    drafts: plans?.filter(item => item.status === 'DRAFT').length ?? null,
+  } : null;
+  return { enrollments, today, name: role === 'COACH' ? String(coach!.fullName || 'Coach') : 'Quản lý', metrics, sessions, activity, week, manager, coach: coachSummary };
 }
 export async function loadDashboard(role: StaffRole, userId: string, token: string): Promise<DashboardData> {
   const sources: [keyof DashboardSources, string, () => Promise<Entity[]>][] = [
@@ -49,6 +77,7 @@ export async function loadDashboard(role: StaffRole, userId: string, token: stri
     ...(role === 'CENTER_MANAGER' ? [
       ['members', 'Hội viên', async () => (await membersApi.list(token)).map(item => ({ ...item }))],
       ['logs', 'Lịch sử thao tác', () => activityLogsApi.list(token)],
+      ['payments', 'Thanh toán', () => paymentsApi.list(token)],
     ] as [keyof DashboardSources, string, () => Promise<Entity[]>][] : [
       ['plans', 'Kế hoạch tập', () => workoutPlansApi.list(token)], ['results', 'Kết quả tập', () => workoutResultsApi.list(token)],
     ] as [keyof DashboardSources, string, () => Promise<Entity[]>][]),

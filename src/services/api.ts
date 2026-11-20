@@ -14,7 +14,7 @@ export function onUnauthorized(listener: (token: string) => void) {
   unauthorizedListeners.add(listener);
   return () => { unauthorizedListeners.delete(listener); };
 }
-export async function requestEnvelope<T>(path: string, options: RequestOptions = {}): Promise<Envelope<T> & { requiresOTP?: boolean }> {
+export async function requestEnvelope<T>(path: string, options: RequestOptions = {}): Promise<Envelope<T>> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 15000);
   try {
@@ -56,26 +56,23 @@ export async function requestHtml(path: string, token: string): Promise<string> 
     throw error;
   } finally { clearTimeout(timer); }
 }
+const normalizeEmail = (email: string) => email.trim().toLowerCase();
+/** 'created' when the BE made the account at once (older BE), 'otp' when it emailed a 6-digit code first. */
+export const registrationStep = (data: unknown): 'created' | 'otp' =>
+  data && typeof data === 'object' && 'id' in data ? 'created' : 'otp';
 export const authApi = {
-  register: (email: string, password: string) => request<ApiUser>('/api/auth/register', { body: { email: email.trim().toLowerCase(), password, role: 'MEMBER' } }),
+  register: (email: string, password: string) => request<ApiUser | { email: string }>('/api/auth/register', { body: { email: normalizeEmail(email), password, role: 'MEMBER' } }),
+  /** Finishes sign-up with the code emailed by /register; the account exists only after this. */
+  verifyRegistration: (email: string, otp: string) => request<ApiUser>('/api/auth/register/verify-otp', { body: { email: normalizeEmail(email), otp } }),
+  /** Always answers success (does not reveal whether the email exists); the email links to the web reset page. */
+  forgotPassword: (email: string) => request<void>('/api/auth/forgot-password', { body: { email: normalizeEmail(email) } }),
+  /** Emails a 6-digit reset code (5 minutes). Same answer whether or not the account exists. */
+  forgotPasswordOtp: (email: string) => request<{ email: string }>('/api/auth/forgot-password/otp', { body: { email: normalizeEmail(email) } }),
+  /** Sets the new password with that code; other sessions of the account end. */
+  resetPasswordOtp: (email: string, otp: string, password: string) => request<void>('/api/auth/reset-password/otp', { body: { email: normalizeEmail(email), otp, password } }),
   login: (email: string, password: string) => request<AuthSession>('/api/auth/login', {
     body: { email: email.trim().toLowerCase(), password },
     timeoutMs: 60_000,
   }),
   me: (token: string) => request<ApiUser>('/api/auth/me', { token }),
-  google: async (idToken: string) => parseGoogleAuth(await requestEnvelope<{ token?: string; user?: ApiUser; email?: string; challengeToken?: string }>('/api/auth/google', { body: { idToken } })),
-  verifyGoogleOtp: (challengeToken: string, otp: string) => request<AuthSession>('/api/auth/google/verify-otp', { body: { challengeToken, otp } }),
 };
-
-export type GoogleAuthResult = { requiresOTP: false; token: string; user: ApiUser } | { requiresOTP: true; email: string; challengeToken: string };
-
-/** BE answers { requiresOTP: false, data: { token, user } } or { requiresOTP: true, data: { email, challengeToken } }. */
-export function parseGoogleAuth(result: { requiresOTP?: boolean; data?: { token?: string; user?: ApiUser; email?: string; challengeToken?: string } }): GoogleAuthResult {
-  const data = result?.data;
-  if (result?.requiresOTP === true) {
-    if (!data?.email || !data.challengeToken) throw new Error('Máy chủ chưa trả về thông tin xác minh OTP.');
-    return { requiresOTP: true, email: data.email, challengeToken: data.challengeToken };
-  }
-  if (!data?.token || !data.user) throw new Error('Máy chủ chưa trả về phiên đăng nhập Google hợp lệ.');
-  return { requiresOTP: false, token: data.token, user: data.user };
-}

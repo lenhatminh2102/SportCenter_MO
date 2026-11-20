@@ -1,0 +1,35 @@
+import { useCallback, useMemo, useState } from 'react';
+import { FlatList, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useFocusEffect } from 'expo-router';
+import { useStaffShell } from '@/context/staff-shell';
+import { useAuth } from '@/context/auth';
+import { membersApi, memberId } from '@/services/members';
+import { DeleteMember } from '@/components/sport/delete-member';
+import { canDeleteMembers, canManageMembers } from '@/utils/permissions';
+import { useApiQuery } from '@/hooks/use-api-query';
+import { AccessScreen, QueryStatus } from '@/components/sport/access';
+import { Button, Field } from '@/components/sport/ui';
+import { levelLabels } from '@/components/sport/member-form';
+import { ui } from '@/components/sport/styles';
+export default function Members() {
+  const { user, token } = useAuth();
+  const inStaffShell = useStaffShell();
+  const [search, setSearch] = useState('');
+  const [level, setLevel] = useState('ALL');
+  const load = useCallback(() => membersApi.list(token!), [token]);
+  const query = useApiQuery(load, !!token, false);
+  const { reload } = query;
+  useFocusEffect(useCallback(() => { reload(); }, [reload]));
+  const filtered = useMemo(() => (query.data || []).filter(member => (level === 'ALL' || member.level === level)
+    && `${member.fullName} ${member.phone}`.toLocaleLowerCase('vi').includes(search.trim().toLocaleLowerCase('vi'))), [query.data, search, level]);
+  if (!user || !token) return <AccessScreen />;
+  return <SafeAreaView edges={inStaffShell ? ['left', 'right'] : ['top', 'bottom', 'left', 'right']} style={ui.page}><FlatList
+    contentContainerStyle={ui.content} data={filtered} keyExtractor={memberId}
+    refreshing={query.loading} onRefresh={() => void query.reload()} keyboardShouldPersistTaps="handled"
+    ListHeaderComponent={<View style={{ gap: 18, marginBottom: 20 }}><Text style={ui.title}>Danh sách hội viên</Text><Text style={ui.body}>{query.data?.length ?? 0} hồ sơ trên hệ thống</Text>{canManageMembers(user.role) && <Button title="+ Thêm hồ sơ hội viên" onPress={() => router.push('/members/edit')} />}{canManageMembers(user.role) && <Button secondary title="+ Tạo tài khoản hội viên tại quầy" onPress={() => router.push('/members/front-desk')} />}<Field label="Tìm hội viên" placeholder="Tên hoặc số điện thoại" value={search} onChangeText={setSearch} /><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{[['ALL', 'Mọi trình độ'] as const, ...Object.entries(levelLabels)].map(([value, label]) => <Button key={value} secondary={level !== value} title={query.data ? `${label} (${value === 'ALL' ? query.data.length : query.data.filter(member => member.level === value).length})` : label} onPress={() => setLevel(value)} />)}</View><QueryStatus loading={query.loading} error={query.error} retry={() => void query.reload()} /></View>}
+    ListEmptyComponent={!query.loading && !query.error ? <Text style={ui.body}>{search || level !== 'ALL' ? 'Không tìm thấy hội viên. Thử tên, số điện thoại hoặc trình độ khác.' : 'Chưa có hồ sơ hội viên.'}</Text> : undefined}
+    ItemSeparatorComponent={() => <View style={{ height: 14 }} />}
+    renderItem={({ item }) => <View style={ui.card}><Text style={ui.heading}>{item.fullName}</Text><Text selectable style={ui.body}>{item.phone}</Text><Text style={ui.body}>{levelLabels[item.level] || item.level} · {item.goal || 'Chưa có mục tiêu'}</Text><Text selectable style={[ui.body, { fontSize: 11 }]}>Mã hồ sơ: {memberId(item)}</Text>{canManageMembers(user.role) && <Button secondary title="Chỉnh sửa hồ sơ" onPress={() => router.push({ pathname: '/members/edit', params: { id: memberId(item) } })} />}{user.role === 'CENTER_MANAGER' && <Button secondary title="Gói thành viên" onPress={() => router.push({ pathname: '/manager/memberships', params: { memberId: memberId(item), memberName: item.fullName } })} />}{canDeleteMembers(user.role) && <DeleteMember member={item} token={token} onDeleted={() => void query.reload()} />}</View>}
+  /></SafeAreaView>;
+}
